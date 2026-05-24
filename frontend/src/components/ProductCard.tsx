@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, ActivityIndicator, type ImageSourcePropType } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { resolveImageSource } from "@/utils/resolveImageSource";
 
@@ -27,6 +28,7 @@ export default function ProductCard({
   containerClassName,
 }: ProductCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { addItem } = useCart();
   const favorite = isFavorite(id);
   const resolvedImageSource = resolveImageSource(imageSource);
 
@@ -109,6 +111,13 @@ export default function ProductCard({
             className="h-9 w-9 items-center justify-center rounded-full bg-emerald-600"
             onPress={(e) => {
               e.stopPropagation?.();
+              addItem({
+                id,
+                name,
+                subtitle,
+                price,
+                imageSource,
+              });
               onAdd?.();
             }}
             accessibilityRole="button"
@@ -121,33 +130,25 @@ export default function ProductCard({
     </>
   );
 
-  return (
-    Platform.OS === "web" ? (
-      <View
-        className={className}
-        onClick={onPress}
-        tabIndex={onPress ? 0 : undefined}
-        accessibilityLabel={onPress ? `View ${name}` : undefined}
-        onKeyDown={(e: any) => {
-          if (!onPress) return;
-          if (e?.key === "Enter" || e?.key === " ") {
-            e.preventDefault?.();
-            onPress();
-          }
-        }}
-      >
-        {cardBody}
-      </View>
-    ) : (
-      <Pressable
-        className={className}
-        onPress={onPress}
-        disabled={!onPress}
-        accessibilityRole={onPress ? "button" : undefined}
-        accessibilityLabel={onPress ? `View ${name}` : undefined}
-      >
-        {cardBody}
-      </Pressable>
-    )
+  return Platform.OS === "web" ? (
+    <Pressable
+      className={className}
+      onPress={onPress}
+      tabIndex={onPress ? 0 : undefined}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={onPress ? `View ${name}` : undefined}
+    >
+      {cardBody}
+    </Pressable>
+  ) : (
+    <Pressable
+      className={className}
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={onPress ? `View ${name}` : undefined}
+    >
+      {cardBody}
+    </Pressable>
   );
 }

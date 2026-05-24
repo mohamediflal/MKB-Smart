@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
+import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { BEST_SELLING } from "@/constants/bestSelling";
 import { RECOMMENDED } from "@/constants/recommended";
@@ -78,6 +79,7 @@ export default function ProductDetailsScreen() {
   const product = id ? productMap.get(id) : undefined;
 
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { addItem, cartCount } = useCart();
   const favorite = product ? isFavorite(product.id) : false;
 
   const [qty, setQty] = useState(1);
@@ -107,6 +109,20 @@ export default function ProductDetailsScreen() {
       await Share.share({ message: `${product.name} - ${product.price}` });
     } catch {
       // ignore
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!product) return;
+
+    for (let index = 0; index < qty; index += 1) {
+      addItem({
+        id: product.id,
+        name: product.name,
+        subtitle: product.subtitle,
+        price: product.price,
+        imageSource: product.imageSource,
+      });
     }
   };
 
@@ -160,14 +176,33 @@ export default function ProductDetailsScreen() {
               <Ionicons name="chevron-back" size={20} color="black" />
             </Pressable>
 
-            <Pressable
-              onPress={onShare}
-              className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
-              accessibilityRole="button"
-              accessibilityLabel="Share product"
-            >
-              <Ionicons name="share-outline" size={20} color="black" />
-            </Pressable>
+            <View className="flex-row items-center gap-2">
+              <Pressable
+                onPress={onShare}
+                className="h-10 w-10 items-center justify-center rounded-full bg-white/90"
+                accessibilityRole="button"
+                accessibilityLabel="Share product"
+              >
+                <Ionicons name="share-outline" size={20} color="black" />
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/cart")}
+                className="relative h-10 w-10 items-center justify-center rounded-full bg-white/90"
+                accessibilityRole="button"
+                accessibilityLabel={`Open cart with ${cartCount} items`}
+              >
+                <Ionicons name="cart-outline" size={20} color="black" />
+
+                {cartCount > 0 && (
+                  <View className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 py-0.5">
+                    <Text className="text-center text-[10px] font-bold leading-none text-white">
+                      {cartCount > 99 ? "99+" : cartCount}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -318,6 +353,13 @@ export default function ProductDetailsScreen() {
                     accessibilityLabel={`Add ${p.name}`}
                     onPress={(e) => {
                       e.stopPropagation?.();
+                      addItem({
+                        id: p.id,
+                        name: p.name,
+                        subtitle: p.subtitle,
+                        price: p.price,
+                        imageSource: p.imageSource,
+                      });
                     }}
                   >
                     <Ionicons name="add" size={22} color="white" />
@@ -345,6 +387,7 @@ export default function ProductDetailsScreen() {
             className="flex-1 flex-row items-center justify-center rounded-2xl bg-green-700 py-4"
             accessibilityRole="button"
             accessibilityLabel="Add to cart"
+            onPress={handleAddToCart}
           >
             <Ionicons name="cart-outline" size={20} color="white" />
             <Text className="ml-2 text-sm font-bold text-white">Add to Cart</Text>

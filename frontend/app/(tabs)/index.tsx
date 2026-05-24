@@ -1,17 +1,26 @@
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import Header from "@/components/Header";
 import Banner from "@/components/Banner";
 import CategoryItem from "@/components/CategoryItem";
 import ProductCard from "@/components/ProductCard";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { CATEGORIES } from "@/constants/categories";
 import { BEST_SELLING } from "@/constants/bestSelling";
 import { RECOMMENDED } from "@/constants/recommended";
 
 export default function Home() {
   const router = useRouter();
+  const pathname = usePathname();
   const { width } = useWindowDimensions();
   const bannerWidth = width;
 
@@ -24,15 +33,23 @@ export default function Home() {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      <Header />
+      <Header onNotificationsPress={() => router.push({ pathname: "/notificationPop", params: { returnTo: pathname } })} />
 
       <ScrollView
         className="flex-1 px-4"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 90 }}
       >
-
-        <View className="pt-4" />
+        <View className="mb-4">
+          <View className="flex-row items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-1.8">
+            <Ionicons name="search-outline" size={20} color="#64748b" />
+            <TextInput
+              placeholder="Search products, categories..."
+              placeholderTextColor="#94a3b8"
+              className="ml-3 flex-1 text-base text-slate-900"
+            />
+          </View>
+        </View>
 
         {/*  Banner Slider */}
 
