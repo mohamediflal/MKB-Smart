@@ -35,8 +35,13 @@ export default function FavoritesScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      <View className="px-4 py-3">
-        <Text className="text-lg font-bold text-slate-900">Favourite</Text>
+      <View className="bg-white px-5 pt-6 pb-4">
+        <View className="flex-row items-center">
+          <View className="mr-3 ml-2 h-8 w-1 rounded-full bg-green-700" />
+          <Text className="text-[28px] font-black tracking-tight text-slate-900">
+            Favourite
+          </Text>
+        </View>
       </View>
 
       <ScrollView
@@ -45,8 +50,10 @@ export default function FavoritesScreen() {
         showsVerticalScrollIndicator={false}
       >
         {items.length === 0 ? (
-          <View className="items-center justify-center pt-10">
-            <Text className="text-sm text-slate-500">No favourites yet.</Text>
+          <View className="mx-4 mt-6 items-center justify-center rounded-3xl border border-slate-200 bg-white px-6 py-12 shadow-sm">
+            <Text className="text-base font-semibold text-slate-700">
+              No favourites yet.
+            </Text>
           </View>
         ) : (
           <View className="flex-row flex-wrap" style={{ columnGap, rowGap: 16 }}>

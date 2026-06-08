@@ -12,7 +12,7 @@ export const RECOMMENDED: RecommendedProduct[] = [
   {
     id: "strawberries",
     name: "Fresh Strawberries",
-    subtitle: "500g, Price",
+    subtitle: "1kg, Price",
     price: "Rs. 990",
     imageSource: require("../assets/images/fruits.jpg"),
   },

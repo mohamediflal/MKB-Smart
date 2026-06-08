@@ -6,6 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { resolveImageSource } from "@/utils/resolveImageSource";
 
+
 type ProductCardProps = {
   id: string;
   name: string;
@@ -45,13 +46,13 @@ export default function ProductCard({
 
   const cardBody = (
     <>
-      <View className="relative items-center justify-center overflow-hidden bg-slate-50 p-3" style={{ height: 150 }}>
+      <View className="relative items-center justify-center overflow-hidden bg-slate-50 p-3" style={{ height: 130 }}>
         {!error ? (
           <>
             <Image
               source={resolvedImageSource}
               contentFit="contain"
-              style={{ width: 120, height: 120 }}
+              style={{ width: 120, height: 140 }}
               onLoad={() => setLoading(false)}
               onError={() => {
                 setLoading(false);
@@ -76,7 +77,7 @@ export default function ProductCard({
             e.stopPropagation?.();
             toggleFavorite(id);
           }}
-          className="absolute right-3 top-3 h-10 w-10 overflow-hidden rounded-full border border-white/70"
+          className="absolute right-3 top-3 h-9 w-9 overflow-hidden rounded-full border border-white/70"
           accessibilityRole="button"
           accessibilityLabel={favorite ? `Unfavorite ${name}` : `Favorite ${name}`}
           accessibilityState={{ selected: favorite }}
@@ -90,7 +91,7 @@ export default function ProductCard({
           <View className="flex-1 items-center justify-center">
             <Ionicons
               name={favorite ? "heart" : "heart-outline"}
-              size={20}
+              size={19}
               color={favorite ? "#dc2626" : "#0f172a"}
             />
           </View>
@@ -108,7 +109,8 @@ export default function ProductCard({
         <View className="mt-0 flex-row items-center justify-between">
           <Text className="text-lg font-extrabold text-slate-900">{price}</Text>
           <Pressable
-            className="h-9 w-9 items-center justify-center rounded-full bg-emerald-600"
+            className="h-8 w-8 items-center justify-center rounded-full bg-[#15803d]"
+            style={{ backgroundColor: "#15803d", elevation: 4, zIndex: 2 }}
             onPress={(e) => {
               e.stopPropagation?.();
               addItem({
@@ -134,8 +136,8 @@ export default function ProductCard({
     <Pressable
       className={className}
       onPress={onPress}
+      disabled={!onPress}
       tabIndex={onPress ? 0 : undefined}
-      accessibilityRole={onPress ? "button" : undefined}
       accessibilityLabel={onPress ? `View ${name}` : undefined}
     >
       {cardBody}

@@ -1,10 +1,14 @@
 import React from "react";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
+import { Pressable } from "react-native";
 
 export default function TabLayout() {
   const { cartCount } = useCart();
+  const { isAuthenticated, isAuthReady } = useAuth();
+  const router = useRouter();
 
   return (
     <Tabs
@@ -78,6 +82,23 @@ export default function TabLayout() {
               color={color}
             />
           ),
+          tabBarButton: (props) => (
+            <Pressable
+              {...(props as any)}
+              onPress={async (e: any) => {
+                if (!isAuthReady) {
+                  return (props as any).onPress?.(e);
+                }
+                if (!isAuthenticated) {
+                  e?.preventDefault?.();
+                  await router.replace('/');
+                  await router.push('/authPopUp');
+                } else {
+                  (props as any).onPress?.(e);
+                }
+              }}
+            />
+          ),
         }}
       />
 
@@ -90,6 +111,23 @@ export default function TabLayout() {
               name={focused ? "chatbubble-ellipses" : "chatbubbles-outline"}
               size={24}
               color={color}
+            />
+          ),
+          tabBarButton: (props) => (
+            <Pressable
+              {...(props as any)}
+              onPress={async (e: any) => {
+                if (!isAuthReady) {
+                  return (props as any).onPress?.(e);
+                }
+                if (!isAuthenticated) {
+                  e?.preventDefault?.();
+                  await router.replace('/');
+                  await router.push({ pathname: '/authPopUp', params: { returnTo: '/ai' } });
+                } else {
+                  (props as any).onPress?.(e);
+                }
+              }}
             />
           ),
         }}
@@ -106,18 +144,52 @@ export default function TabLayout() {
               color={color}
             />
           ),
+          tabBarButton: (props) => (
+            <Pressable
+              {...(props as any)}
+              onPress={async (e: any) => {
+                if (!isAuthReady) {
+                  return (props as any).onPress?.(e);
+                }
+                if (!isAuthenticated) {
+                  e?.preventDefault?.();
+                  await router.replace('/');
+                  await router.push({ pathname: '/authPopUp', params: { returnTo: '/favorites' } });
+                } else {
+                  (props as any).onPress?.(e);
+                }
+              }}
+            />
+          ),
         }}
       />
 
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Account",
+          title: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "person" : "person-outline"}
               size={24}
               color={color}
+            />
+          ),
+          tabBarButton: (props) => (
+            <Pressable
+              {...(props as any)}
+              onPress={async (e: any) => {
+                if (!isAuthReady) {
+                  return (props as any).onPress?.(e);
+                }
+                if (!isAuthenticated) {
+                  e?.preventDefault?.();
+                  await router.replace('/');
+                  await router.push({ pathname: '/authPopUp', params: { returnTo: '/profile' } });
+                } else {
+                  (props as any).onPress?.(e);
+                }
+              }}
             />
           ),
         }}
@@ -135,6 +207,21 @@ export default function TabLayout() {
 
       <Tabs.Screen
         name="editProfile"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="checkout"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="login"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="register"
         options={{ href: null }}
       />
     </Tabs>

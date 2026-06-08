@@ -2,7 +2,7 @@ import React from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAddresses } from "@/context/AddressContext";
 
 function AddressCard({
@@ -31,44 +31,44 @@ function AddressCard({
   showPrimaryButton?: boolean;
 }) {
   return (
-    <View
-			className={`rounded-2xl bg-white px-4 py-4 shadow-sm ${primaryBorder ? "border border-[#0d631b]" : "border border-[#c8d0c1]"}`}
-			style={{ shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 }}
+	    <View
+		    className={`rounded-2xl bg-white px-4 py-4 shadow-sm ${primaryBorder ? "border border-[#15803d]" : "border border-slate-200"}`}
+		    style={{ shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 }}
     >
 			<View className="mb-4 flex-row items-start justify-between">
 				<View className="flex-1 flex-row items-start gap-3 pr-3">
-					<View className="h-11 w-11 items-center justify-center rounded-full bg-[#bdefbe]">
-            <Ionicons name={icon} size={20} color="#0d631b" />
-          </View>
+										<View className="h-11 w-11 items-center justify-center rounded-full bg-[#15803d]/10">
+						<Ionicons name={icon} size={20} color="#0d631b" />
+					</View>
 					<View className="flex-1 pt-0.5">
 						<Text className="text-[12px] font-bold uppercase tracking-[1.2px] text-slate-500">
               {title}
             </Text>
-            {primaryBadge ? (
-							<View className="mt-1 self-start rounded-full bg-[#0d631b] px-2.5 py-0.5">
-                <Text className="text-[10px] font-bold text-white">PRIMARY</Text>
-              </View>
-            ) : null}
+						{primaryBadge ? (
+														<View className="mt-1 self-start rounded-full bg-[#15803d] px-2.5 py-0.5">
+								<Text className="text-[10px] font-bold text-white">PRIMARY</Text>
+							</View>
+						) : null}
           </View>
         </View>
 
 				<View className="flex-row gap-3 pt-0.5">
-          <Pressable
-						onPress={onEdit}
-            accessibilityRole="button"
-            accessibilityLabel={`Edit ${title} address`}
-						className="h-8 w-8 items-center justify-center rounded-full bg-white"
-          >
-						<Ionicons name="create-outline" size={19} color="#40493d" />
-          </Pressable>
-          <Pressable
-						onPress={onDelete}
-            accessibilityRole="button"
-            accessibilityLabel={`Delete ${title} address`}
-						className="h-8 w-8 items-center justify-center rounded-full bg-white"
-          >
-						<Ionicons name="trash-outline" size={19} color="#ba1a1a" />
-          </Pressable>
+					<Pressable
+												onPress={onEdit}
+						accessibilityRole="button"
+						accessibilityLabel={`Edit ${title} address`}
+												className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
+					>
+												<Ionicons name="create-outline" size={19} color="#40493d" />
+					</Pressable>
+					<Pressable
+												onPress={onDelete}
+						accessibilityRole="button"
+						accessibilityLabel={`Delete ${title} address`}
+												className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
+					>
+												<Ionicons name="trash-outline" size={19} color="#ba1a1a" />
+					</Pressable>
         </View>
       </View>
 
@@ -81,24 +81,49 @@ function AddressCard({
         </View>
       </View>
 
-      {showPrimaryButton ? (
-        <Pressable
-					onPress={onSetPrimary}
-					className="mt-4 rounded-xl border border-[#0d631b] py-3"
-          accessibilityRole="button"
-          accessibilityLabel={`Set ${title} as primary`}
-        >
-					<Text className="text-center text-[13px] font-bold text-[#0d631b]">Set as Primary</Text>
-        </Pressable>
-      ) : null}
+			{showPrimaryButton ? (
+				<Pressable
+										onPress={onSetPrimary}
+										className="mt-4 rounded-xl border border-[#15803d] bg-white py-3 shadow-sm active:bg-slate-50"
+					accessibilityRole="button"
+					accessibilityLabel={`Set ${title} as primary`}
+				>
+										<Text className="text-center text-[13px] font-semibold text-[#15803d]">Set as Primary</Text>
+				</Pressable>
+			) : null}
     </View>
   );
 }
 
 export default function MyAddressScreen() {
 	const router = useRouter();
+	const params = useLocalSearchParams<{ returnTo?: string }>();
 	const { addresses, removeAddress, updateAddress } = useAddresses();
 	const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; title: string } | null>(null);
+
+	const handleBackPress = () => {
+		if (params.returnTo === "/checkout") {
+			router.replace("/checkout");
+			return;
+		}
+
+		if (params.returnTo === "/profile") {
+			router.replace("/profile");
+			return;
+		}
+
+		if (params.returnTo === "/cart") {
+			router.replace("/cart");
+			return;
+		}
+
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+
+		router.replace("/");
+	};
 	const formattedAddresses = addresses.map((address) => ({
 		id: address.id,
 		title: address.label,
@@ -142,12 +167,12 @@ export default function MyAddressScreen() {
 		};
 
 	return (
-		<SafeAreaView className="flex-1 bg-[#f7fbf0]" edges={["top"]}>
-			<View className="flex-row items-center justify-between border-b border-[#bfcaba] bg-[#f7fbf0] px-4 py-3">
+		<SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+			<View className="flex-row items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
 				<View className="flex-row items-center gap-3">
 					<Pressable
-						onPress={() => router.back()}
-						className="h-10 w-10 items-center justify-center rounded-full bg-white"
+						onPress={handleBackPress}
+						className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
 						accessibilityRole="button"
 						accessibilityLabel="Go back"
 					>
@@ -160,7 +185,7 @@ export default function MyAddressScreen() {
 					onPress={() => router.push("/addNewAddress")}
 					accessibilityRole="button"
 					accessibilityLabel="Add new address"
-					className="h-10 w-10 items-center justify-center rounded-full bg-white"
+					className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
 				>
 					<Ionicons name="add" size={22} color="#0d631b" />
 				</Pressable>
@@ -195,8 +220,8 @@ export default function MyAddressScreen() {
 					))}
 				</View>
 
-				<View className="mt-8 items-center justify-center py-6 opacity-50">
-					<View className="mb-4 h-24 w-24 items-center justify-center rounded-full bg-[#e5eadf]">
+				<View className="mt-8 items-center justify-center py-6 opacity-60">
+					<View className="mb-4 h-24 w-24 items-center justify-center rounded-full bg-slate-100">
 						<Ionicons name="location-outline" size={40} color="#40493d" />
 					</View>
 					<Text className="max-w-[220px] text-center text-[14px] text-slate-500">
@@ -205,10 +230,10 @@ export default function MyAddressScreen() {
 				</View>
 			</ScrollView>
 
-			<View className="absolute bottom-0 left-0 right-0 border-t border-[#bfcaba] bg-[#f7fbf0] px-4 pb-6 pt-4">
+			<View className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 px-4 pb-6 pt-4 shadow-sm">
 				<Pressable
 					onPress={() => router.push("/addNewAddress")}
-					className="flex-row items-center justify-center gap-2 rounded-xl bg-[#2e7d32] py-4"
+					className="flex-row items-center justify-center gap-2 rounded-xl bg-[#15803d] py-4 shadow-lg shadow-[#15803d]/25 active:bg-[#15803d]"
 					accessibilityRole="button"
 					accessibilityLabel="Add new address"
 				>
@@ -220,7 +245,7 @@ export default function MyAddressScreen() {
 			<Modal visible={Boolean(deleteTarget)} transparent animationType="fade" onRequestClose={() => setDeleteTarget(null)}>
 				<View className="flex-1 items-center justify-center bg-black/45 px-6">
 					<View
-						className="w-full max-w-[360px] overflow-hidden rounded-[24px] border border-[#bfcaba] bg-[#f7fbf0] p-5 shadow-2xl"
+						className="w-full max-w-[360px] overflow-hidden rounded-[24px] border border-slate-200 bg-white p-5 shadow-2xl"
 						style={{ elevation: 12 }}
 					>
 						<View className="mb-4 flex-row items-center gap-3">
@@ -238,7 +263,7 @@ export default function MyAddressScreen() {
 						<View className="flex-row justify-end gap-3 pt-2">
 							<Pressable
 								onPress={() => setDeleteTarget(null)}
-								className="min-w-[92px] rounded-xl border border-[#bfcaba] bg-white px-4 py-3"
+								className="min-w-[92px] rounded-xl border border-slate-200 bg-white px-4 py-3"
 								accessibilityRole="button"
 								accessibilityLabel="Cancel delete"
 							>
@@ -246,7 +271,7 @@ export default function MyAddressScreen() {
 							</Pressable>
 							<Pressable
 								onPress={confirmDelete}
-								className="min-w-[92px] rounded-xl bg-[#2e7d32] px-4 py-3"
+								className="min-w-[92px] rounded-xl bg-[#15803d] px-4 py-3"
 								accessibilityRole="button"
 								accessibilityLabel="Confirm delete"
 							>

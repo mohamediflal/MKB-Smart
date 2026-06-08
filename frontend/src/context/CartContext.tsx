@@ -19,6 +19,8 @@ type CartContextValue = {
   removeItem: (id: string) => void;
   incrementItem: (id: string) => void;
   decrementItem: (id: string) => void;
+  adjustItemQuantity: (id: string, delta: number) => void;
+  setItemQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
 };
 
@@ -27,10 +29,12 @@ const CartContext = createContext<CartContextValue | null>(null);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
+  const roundQuantity = (value: number) => Math.round(value * 100) / 100;
+
   const value = useMemo<CartContextValue>(
     () => ({
       cartItems,
-      cartCount: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+      cartCount: cartItems.reduce((sum, item) => sum + Math.ceil(item.quantity), 0),
       addItem: (item) => {
         setCartItems((current) => {
           const existing = current.find((cartItem) => cartItem.id === item.id);
@@ -38,7 +42,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           if (existing) {
             return current.map((cartItem) =>
               cartItem.id === item.id
-                ? { ...cartItem, quantity: cartItem.quantity + 1 }
+                ? { ...cartItem, quantity: Math.min(cartItem.quantity + 1, 20) }
                 : cartItem
             );
           }
@@ -52,7 +56,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       incrementItem: (id) => {
         setCartItems((current) =>
           current.map((item) =>
-            item.id === id ? { ...item, quantity: item.quantity + 1 } : item
+            item.id === id ? { ...item, quantity: Math.min(item.quantity + 1, 20) } : item
           )
         );
       },
@@ -62,6 +66,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             .map((item) =>
               item.id === id
                 ? { ...item, quantity: item.quantity - 1 }
+                : item
+            )
+            .filter((item) => item.quantity > 0)
+        );
+      },
+      adjustItemQuantity: (id, delta) => {
+        setCartItems((current) =>
+          current
+            .map((item) =>
+              item.id === id
+                ? (() => {
+                    const q = roundQuantity(item.quantity + delta);
+                    const clamped = Math.min(Math.max(q, 0), 20);
+                    return { ...item, quantity: clamped };
+                  })()
+                : item
+            )
+            .filter((item) => item.quantity > 0)
+        );
+      },
+      setItemQuantity: (id, quantity) => {
+        setCartItems((current) =>
+          current
+            .map((item) =>
+              item.id === id
+                ? { ...item, quantity: Math.min(Math.max(roundQuantity(quantity), 0), 20) }
                 : item
             )
             .filter((item) => item.quantity > 0)

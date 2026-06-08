@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
 
 function MenuRow({
   icon,
@@ -20,12 +21,12 @@ function MenuRow({
   return (
     <Pressable
       onPress={onPress}
-      className={`flex-row items-center justify-between px-4 py-4 ${showDivider ? "border-t border-[#bfcaba]" : ""}`}
+      className={`flex-row items-center justify-between px-4 py-4 ${showDivider ? "border-t border-slate-200" : ""}`}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
       <View className="flex-row items-center gap-4">
-        <Ionicons name={icon} size={22} color="#0d631b" />
+        <Ionicons name={icon} size={22} color="#15803d" />
         <Text className="text-base text-slate-900">{label}</Text>
       </View>
 
@@ -52,9 +53,9 @@ function StatsItem({
 }) {
   return (
     <View
-      className={`flex-1 items-center justify-center py-2 ${divider ? "border-x border-[#bfcaba]" : ""}`}
+      className={`flex-1 items-center justify-center py-2 ${divider ? "border-x border-slate-200" : ""}`}
     >
-      <Text className="text-[24px] font-extrabold text-[#0d631b]">{value}</Text>
+      <Text className="text-[24px] font-extrabold text-[#15803d]">{value}</Text>
       <Text className="mt-1 text-[12px] font-bold uppercase tracking-wider text-slate-500 text-center">
         {label}
       </Text>
@@ -65,15 +66,34 @@ function StatsItem({
 export default function Profile() {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, isAuthenticated, isAuthReady, logout } = useAuth();
+  const hasAttemptedAuth = useRef(false);
+
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    if (!isAuthenticated && !hasAttemptedAuth.current) {
+      hasAttemptedAuth.current = true;
+      const timer = setTimeout(() => {
+        if (!isAuthenticated) {
+          router.push({ pathname: "/authPopUp", params: { returnTo: pathname } });
+        }
+      }, 0);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthReady, isAuthenticated, pathname, router]);
+
+  if (!isAuthReady || !isAuthenticated) {
+    return null;
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#f7fbf0]" edges={["top"]}>
-      <View className="flex-row items-center justify-between border-b border-[#bfcaba] bg-[#f7fbf0] px-4 py-3">
+    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+      <View className="flex-row items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
         <View className="flex-row items-center gap-3">
-          <View className="h-10 w-10 items-center justify-center rounded-full bg-white border border-[#bfcaba]">
-            <Ionicons name="menu" size={22} color="#0d631b" />
-          </View>
-          <Text className="text-[24px] font-extrabold text-[#0d631b]">
+          
+          <Text className="text-[24px] ml-2 font-extrabold tracking-tight text-[#15803d]">
             MKB-Smart
           </Text>
         </View>
@@ -87,7 +107,7 @@ export default function Profile() {
           }
           accessibilityRole="button"
           accessibilityLabel="Notifications"
-          className="h-10 w-10 items-center justify-center rounded-full bg-white border border-[#bfcaba]"
+          className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 border border-slate-200 active:bg-slate-200"
         >
           <Ionicons name="notifications-outline" size={22} color="#40493d" />
         </Pressable>
@@ -104,44 +124,32 @@ export default function Profile() {
       >
         <View className="items-center">
           <View className="relative">
-            <View className="h-24 w-24 overflow-hidden rounded-full border-2 border-[#a3f69c] bg-white shadow-sm items-center justify-center">
-              <Text className="text-3xl font-extrabold text-[#0d631b]">A</Text>
+            <View className="h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
+              <Text className="text-3xl font-extrabold text-[#15803d]">
+                {user?.name?.[0] ?? "U"}
+              </Text>
             </View>
-
-            {/*<Pressable
-							className="absolute -bottom-1 -right-1 h-9 w-9 items-center justify-center rounded-full bg-[#0d631b] shadow-md"
-							accessibilityRole="button"
-							accessibilityLabel="Edit profile photo"
-						>
-							<Ionicons name="pencil" size={16} color="white" />
-						</Pressable>*/}
           </View>
 
           <View className="mt-4 items-center">
             <Text className="text-[24px] font-extrabold text-slate-900">
-              Alexander Bennett
+              {user?.name ?? "My Profile"}
             </Text>
             <Text className="mt-1 text-[14px] text-slate-500">
-              alex.bennett@smartfood.city
+              {user?.email ?? "No email available"}
             </Text>
           </View>
 
           <Pressable
             onPress={() => router.push("/editProfile")}
-            className="mt-4 rounded-xl border border-[#0d631b] px-5 py-2.5"
+            className="mt-4 rounded-xl border border-[#15803d] px-5 py-2.5 bg-white active:opacity-95 shadow-sm"
             accessibilityRole="button"
             accessibilityLabel="Edit profile"
           >
-            <Text className="text-[12px] font-bold uppercase tracking-wider text-[#0d631b]">
+            <Text className="text-[12px] font-semibold uppercase tracking-wider text-[#15803d]">
               Edit Profile
             </Text>
           </Pressable>
-        </View>
-
-        <View className="mt-6 flex-row overflow-hidden rounded-xl border border-[#bfcaba] bg-white">
-          <StatsItem value="124" label="Total Orders" />
-          <StatsItem value="42" label="Saved Items" divider />
-          <StatsItem value="18" label="Reviews" />
         </View>
 
         <View className="mt-6 space-y-3">
@@ -149,7 +157,7 @@ export default function Profile() {
             Account Settings
           </Text>
 
-          <View className="overflow-hidden rounded-xl border border-[#bfcaba] bg-white">
+          <View className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <MenuRow icon="bag-handle-outline" label="My Orders" />
             <MenuRow
               icon="location-outline"
@@ -157,14 +165,14 @@ export default function Profile() {
               showDivider
               onPress={() => router.push("/myAddress")}
             />
-            <MenuRow icon="card-outline" label="Payment Methods" showDivider />
+            
           </View>
 
           <Text className="px-1 pt-2 text-[12px] font-bold uppercase tracking-wider text-slate-500">
             Preferences
           </Text>
 
-          <View className="overflow-hidden rounded-xl border border-[#bfcaba] bg-white">
+          <View className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <MenuRow
               icon="notifications-outline"
               label="Notifications"
@@ -190,14 +198,35 @@ export default function Profile() {
 
           <View className="pt-2">
             <Pressable
-              className="flex-row items-center justify-center gap-2 rounded-xl border border-[#bfcaba] bg-white px-4 py-4"
+              onPress={() => {
+                logout();
+                router.replace("/");
+              }}
+              className="flex-row items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm active:bg-slate-50"
               accessibilityRole="button"
               accessibilityLabel="Logout"
             >
               <Ionicons name="log-out-outline" size={20} color="#dc2626" />
               <Text className="text-base font-bold text-red-600">Logout</Text>
             </Pressable>
+
+            
           </View>
+
+          <View className="pt-2 mt-3">
+            <Pressable
+              className="flex-row items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm active:bg-slate-50"
+              accessibilityRole="button"
+              accessibilityLabel="Delete Account"
+            >
+        
+              <Text className="text-base font-bold text-red-600">Delete Account</Text>
+            </Pressable>
+
+            
+          </View>
+
+          
         </View>
       </ScrollView>
     </SafeAreaView>

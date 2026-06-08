@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 
 function FieldLabel({ children }: { children: string }) {
 	return (
-		<Text className="block px-1 text-[12px] font-bold uppercase tracking-wider text-slate-500">
+		<Text className="block text-[12px] font-semibold uppercase tracking-wide text-slate-600 mb-1">
 			{children}
 		</Text>
 	);
@@ -28,8 +28,8 @@ function SecurityRow({
 	return (
 		<View className="flex-row items-center justify-between">
 			<View className="flex-row flex-1 items-center gap-4 pr-4">
-				<View className="h-10 w-10 items-center justify-center rounded-full bg-[#bdefbe]/30">
-					<Ionicons name={icon} size={20} color="#3c6842" />
+				<View className="h-10 w-10 items-center justify-center rounded-full bg-[#15803d]/10">
+					<Ionicons name={icon} size={20} color="#15803d" />
 				</View>
 				<View className="flex-1">
 					<Text className="text-[16px] font-semibold text-slate-900">{title}</Text>
@@ -40,7 +40,7 @@ function SecurityRow({
 			<Switch
 				value={value}
 				onValueChange={onValueChange}
-				trackColor={{ false: "#bfcaba", true: "#0d631b" }}
+				trackColor={{ false: "#bfcaba", true: "#15803d" }}
 				thumbColor="#ffffff"
 			/>
 		</View>
@@ -55,26 +55,19 @@ export default function EditProfile() {
 	const [biometricEnabled, setBiometricEnabled] = useState(false);
 
 	return (
-		<SafeAreaView className="flex-1 bg-[#f7fbf0]" edges={["top"]}>
-			<View className="flex-row items-center justify-between border-b border-[#bfcaba] bg-[#f7fbf0] px-4 py-3">
+		<SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+			<View className="flex-row items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
 				<Pressable
-					onPress={() => router.back()}
-					className="h-10 w-10 items-center justify-center rounded-full bg-white"
+					onPress={() => router.replace("/profile")}
+					className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
 					accessibilityRole="button"
 					accessibilityLabel="Go back"
 				>
-					<Ionicons name="arrow-back" size={22} color="#0d631b" />
+						<Ionicons name="arrow-back" size={22} color="#0f172a" />
 				</Pressable>
 
-				<Text className="text-[20px] font-bold text-slate-900">Edit Profile</Text>
+				<Text className="absolute left-0 right-0 text-center text-[20px] font-extrabold tracking-tight text-slate-900">Edit Profile</Text>
 
-				<Pressable
-					accessibilityRole="button"
-					accessibilityLabel="More options"
-					className="h-10 w-10 items-center justify-center rounded-full bg-white"
-				>
-					<Ionicons name="ellipsis-vertical" size={20} color="#0d631b" />
-				</Pressable>
 			</View>
 
 			<ScrollView
@@ -84,12 +77,12 @@ export default function EditProfile() {
 			>
 				<View className="items-center">
 					<View className="relative">
-						<View className="h-32 w-32 overflow-hidden rounded-full border-2 border-[#e0e4da] bg-white items-center justify-center shadow-sm">
-							<Text className="text-5xl font-extrabold text-[#0d631b]">A</Text>
+						<View className="h-32 w-32 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
+							<Text className="text-5xl font-extrabold text-[#15803d]">A</Text>
 						</View>
 
 						<Pressable
-							className="absolute bottom-1 right-1 h-11 w-11 items-center justify-center rounded-full border-2 border-[#f7fbf0] bg-[#2e7d32] shadow-md"
+							className="absolute bottom-1 right-1 h-11 w-11 items-center justify-center rounded-full border-2 border-slate-50 bg-[#15803d] shadow-lg shadow-[#15803d]/30 active:bg-[#15803d]"
 							accessibilityRole="button"
 							accessibilityLabel="Change profile photo"
 						>
@@ -102,61 +95,61 @@ export default function EditProfile() {
 						accessibilityRole="button"
 						accessibilityLabel="Change profile photo"
 					>
-						<Text className="text-[12px] font-bold uppercase tracking-wider text-[#0d631b]">
+						<Text className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#15803d]">
 							Change Profile Photo
 						</Text>
 					</Pressable>
 				</View>
 
-				<View className="mt-8 space-y-4">
-					<View className="space-y-xs">
+				<View className="mt-8 space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-md">
+					<View className="space-y-2">
 						<FieldLabel>Full Name</FieldLabel>
 						<TextInput
 							value={fullName}
 							onChangeText={setFullName}
-							className="h-12 rounded-xl border border-[#bfcaba] bg-white px-4 text-[16px] text-slate-900"
-							selectionColor="#0d631b"
+							className="h-12 rounded-xl border border-gray-200 bg-white px-4 text-[15px] text-slate-900 shadow-sm"
+							selectionColor="#15803d"
 						/>
 					</View>
 
-					<View className="space-y-xs">
+					<View className="space-y-2 mt-3">
 						<FieldLabel>Email Address</FieldLabel>
-						<View className="relative">
+						<View className="relative mb-3">
 							<TextInput
 								value="alex.bennett@smartfood.city"
 								editable={false}
-								className="h-12 rounded-xl border border-[#bfcaba] bg-[#f1f5eb] px-4 pr-12 text-[16px] text-[#707a6c]"
+								className="h-12 rounded-xl border border-gray-200 bg-gray-50 px-4 pr-12 text-[15px] text-slate-500"
 							/>
 							<Ionicons
 								name="lock-closed-outline"
 								size={18}
-								color="#707a6c"
+								color="#64748b"
 								style={{ position: "absolute", right: 16, top: 14 }}
 							/>
 						</View>
 					</View>
 
-					<View className="space-y-xs">
+					<View className="space-y-2 mb-3">
 						<FieldLabel>Phone Number</FieldLabel>
 						<TextInput
 							value={phone}
 							onChangeText={setPhone}
 							keyboardType="phone-pad"
-							className="h-12 rounded-xl border border-[#bfcaba] bg-white px-4 text-[16px] text-slate-900"
-							selectionColor="#0d631b"
+							className="h-12 rounded-xl border border-gray-200 bg-white px-4 text-[15px] text-slate-900 shadow-sm"
+							selectionColor="#15803d"
 						/>
 					</View>
 
-					<View className="space-y-xs">
+					<View className="space-y-2">
 						<FieldLabel>Password</FieldLabel>
-						<View className="flex-row items-center justify-between h-12 rounded-xl border border-[#bfcaba] bg-white px-4">
-							<Text className="text-[16px] tracking-[4px] text-slate-900">••••••••</Text>
+						<View className="flex-row h-12 items-center justify-between rounded-xl border border-gray-200 bg-white px-4 shadow-sm">
+							<Text className="text-[16px] tracking-widest text-slate-900">••••••••</Text>
 							<Pressable
 								accessibilityRole="button"
 								accessibilityLabel="Change password"
-								className="rounded-lg px-3 py-1"
+								className="rounded-md bg-[#15803d] px-3 py-1 active:opacity-90"
 							>
-								<Text className="text-[12px] font-bold uppercase tracking-wider text-[#0d631b]">
+								<Text className="text-[12px] font-semibold uppercase tracking-wide text-white">
 									Change
 								</Text>
 							</Pressable>
@@ -164,35 +157,15 @@ export default function EditProfile() {
 					</View>
 				</View>
 
-				<View className="mt-8 border-t border-[#bfcaba] pt-6">
-					<Text className="mb-4 text-[20px] font-bold text-slate-900">Account Security</Text>
-
-					<View className="space-y-4 rounded-2xl bg-[#f1f5eb] p-4">
-						<SecurityRow
-							icon="shield-checkmark-outline"
-							title="Two-Factor Authentication"
-							description="Secure your login process"
-							value={twoFactorEnabled}
-							onValueChange={setTwoFactorEnabled}
-						/>
-
-						<SecurityRow
-							icon="finger-print"
-							title="Biometric Login"
-							description="Face ID or Fingerprint"
-							value={biometricEnabled}
-							onValueChange={setBiometricEnabled}
-						/>
-					</View>
-				</View>
+				
 
 				<View className="mt-8">
 					<Pressable
-						className="rounded-2xl bg-[#2e7d32] py-4 active:opacity-90"
+						className="w-full rounded-2xl bg-[#15803d] py-4 px-6 shadow-md active:opacity-95"
 						accessibilityRole="button"
 						accessibilityLabel="Save changes"
 					>
-						<Text className="text-center text-[20px] font-bold text-white">Save Changes</Text>
+						<Text className="text-center text-[18px] font-bold tracking-wide text-white">Save Changes</Text>
 					</Pressable>
 				</View>
 			</ScrollView>

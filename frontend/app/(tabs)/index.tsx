@@ -40,20 +40,11 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 90 }}
       >
-        <View className="mb-4">
-          <View className="flex-row items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-1.8">
-            <Ionicons name="search-outline" size={20} color="#64748b" />
-            <TextInput
-              placeholder="Search products, categories..."
-              placeholderTextColor="#94a3b8"
-              className="ml-3 flex-1 text-base text-slate-900"
-            />
-          </View>
-        </View>
+
 
         {/*  Banner Slider */}
 
-        <View className="-mx-4">
+        <View className="-mx-4 mt-3">
           <ScrollView
             horizontal
             pagingEnabled
@@ -66,6 +57,17 @@ export default function Home() {
         </View>
 
         <View className="h-5" />
+
+        <View className="mb-5 mt-1">
+          <View className="flex-row items-center rounded-3xl border border-emerald-100 bg-white px-4 py-3 shadow-sm">
+            <Ionicons name="search-outline" size={20} color="#10B981" />
+            <TextInput
+              placeholder="Search products, categories..."
+              placeholderTextColor="#94a3b8"
+              className="ml-3 flex-1 text-base font-medium text-slate-800"
+            />
+          </View>
+        </View>
 
         {/* Categories */}
         <View className="mb-6">

@@ -1,8 +1,15 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useAddresses } from "@/context/AddressContext";
 
 export default function Header({ onNotificationsPress }: { onNotificationsPress?: () => void }) {
+  const { addresses } = useAddresses();
+  const primaryAddress = addresses.find((address) => address.isPrimary);
+  const locationText = primaryAddress
+    ? primaryAddress.street
+    : "Add a delivery address";
+
   return (
     <View className="flex-row items-center justify-between bg-white px-4 py-3">
       <Pressable
@@ -19,10 +26,10 @@ export default function Header({ onNotificationsPress }: { onNotificationsPress?
             DELIVER TO
           </Text>
           <View className="flex-row items-center">
-            <Text className="text-sm font-semibold text-slate-900">
-              Badulla, 2nd mile
+            <Text className="text-sm font-semibold text-slate-900" numberOfLines={1}>
+              {locationText}
             </Text>
-            <Ionicons name="chevron-down" size={18} color="black" />
+            {/* <Ionicons name="chevron-down" size={18} color="black" /> */}
           </View>
         </View>
       </Pressable>

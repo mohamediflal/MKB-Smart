@@ -14,15 +14,15 @@ export const PRODUCTS: Product[] = [
   {
     id: "fruit-apple",
     name: "Red Apples",
-    subtitle: "1kg, Price",
-    price: "Rs. 1,150",
+    subtitle: "1 Piece, Price",
+    price: "Rs. 120",
     imageSource: require("../assets/images/fruits.jpg"),
     categorySlug: "fruits",
   },
   {
     id: "fruit-banana",
     name: "Banana",
-    subtitle: "1 dozen, Price",
+    subtitle: "1kg, Price",
     price: "Rs. 420",
     imageSource: require("../assets/images/fruits.jpg"),
     categorySlug: "fruits",
@@ -38,7 +38,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "fruit-strawberry",
     name: "Fresh Strawberries",
-    subtitle: "500g, Price",
+    subtitle: "1 kg, Price",
     price: "Rs. 990",
     imageSource: require("../assets/images/fruits.jpg"),
     categorySlug: "fruits",

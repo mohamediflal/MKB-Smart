@@ -1,0 +1,355 @@
+import React, { useMemo, useState } from "react";
+import {
+	Alert,
+	Pressable,
+	ScrollView,
+	Text,
+	View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { useCart } from "@/context/CartContext";
+import { useAddresses } from "@/context/AddressContext";
+
+const DELIVERY_FEE = 150;
+const DISCOUNT = 0;
+
+function formatLkr(value: number) {
+	return new Intl.NumberFormat("en-LK", {
+		style: "currency",
+		currency: "LKR",
+		maximumFractionDigits: 2,
+		minimumFractionDigits: 2,
+	}).format(value);
+}
+
+function parsePrice(value: string) {
+	return Number(value.replace(/[^0-9]/g, "")) || 0;
+}
+
+function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
+	return (
+		<View className="mb-3">
+			<Text className="text-[11px] font-semibold uppercase tracking-[2.4px] text-slate-500">
+				{eyebrow}
+			</Text>
+			<Text className="mt-1 text-[22px] font-extrabold tracking-tight text-slate-900">
+				{title}
+			</Text>
+		</View>
+	);
+}
+
+function RadioCard({
+	active,
+	icon,
+	title,
+	subtitle,
+	onPress,
+}: {
+	active: boolean;
+	icon: keyof typeof Ionicons.glyphMap;
+	title: string;
+	subtitle: string;
+	onPress: () => void;
+}) {
+	return (
+		<Pressable
+			onPress={onPress}
+			className={`flex-row items-center gap-4 rounded-[24px] border px-4 py-4 active:scale-[0.99] ${active ? "border-emerald-600 bg-emerald-50" : "border-slate-200 bg-white"}`}
+		>
+			<View className={`h-11 w-11 items-center justify-center rounded-2xl ${active ? "bg-white" : "bg-slate-50"}`}>
+				<Ionicons name={icon} size={20} color={active ? "#15803d" : "#475569"} />
+			</View>
+
+			<View className="flex-1">
+				<Text className="text-base font-bold text-slate-900">{title}</Text>
+				<Text className="mt-1 text-sm text-slate-500">{subtitle}</Text>
+			</View>
+
+			<View className={`h-6 w-6 items-center justify-center rounded-full border-2 ${active ? "border-emerald-600" : "border-slate-300"}`}>
+				{active ? <View className="h-3 w-3 rounded-full bg-emerald-600" /> : null}
+			</View>
+		</Pressable>
+	);
+}
+
+function SummaryRow({
+	label,
+	value,
+	accent,
+}: {
+	label: string;
+	value: string;
+	accent?: boolean;
+}) {
+	return (
+		<View className="flex-row items-center justify-between py-1.5">
+			<Text className={`text-sm ${accent ? "text-emerald-700" : "text-slate-500"}`}>{label}</Text>
+			<Text className={`text-sm font-semibold ${accent ? "text-emerald-700" : "text-slate-800"}`}>{value}</Text>
+		</View>
+	);
+}
+
+export default function CheckoutScreen() {
+	const router = useRouter();
+	const params = useLocalSearchParams<{ returnTo?: string }>();
+	const { cartItems, clearCart } = useCart();
+	const { addresses, updateAddress } = useAddresses();
+	const [paymentMethod, setPaymentMethod] = useState<"card" | "cod">("card");
+	const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+
+	const subtotal = useMemo(
+		() => cartItems.reduce((sum, item) => sum + parsePrice(item.price) * item.quantity, 0),
+		[cartItems]
+	);
+
+	const primaryAddress = useMemo(
+		() => addresses.find((address) => address.isPrimary) ?? addresses[0],
+		[addresses]
+	);
+
+	const total = subtotal + DELIVERY_FEE - DISCOUNT;
+
+	const handleBackPress = () => {
+		if (params.returnTo === "/cart") {
+			router.replace("/cart");
+			return;
+		}
+
+		if (params.returnTo === "/") {
+			router.replace("/");
+			return;
+		}
+
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+
+		router.replace("/");
+	};
+
+	const handlePlaceOrder = () => {
+		if (cartItems.length === 0) {
+			Alert.alert("Your cart is empty", "Add items before placing an order.");
+			return;
+		}
+
+		clearCart();
+		router.replace("/");
+	};
+
+	return (
+		<SafeAreaView className="flex-1 bg-[#f9f9ff]" edges={["top"]}>
+			<View className="sticky top-0 z-10 border-b border-[#becabc] bg-white/85 px-4 py-4 backdrop-blur-md">
+				<View className="flex-row items-center gap-3">
+					<Pressable
+						onPress={handleBackPress}
+						accessibilityRole="button"
+						accessibilityLabel="Go back"
+						className="h-11 w-11 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
+					>
+						<Ionicons name="arrow-back" size={22} color="#0f172a" />
+					</Pressable>
+
+					<View className="flex-1">
+						<Text className="text-[11px] font-semibold uppercase tracking-[2.4px] text-emerald-700">
+							Premium Checkout
+						</Text>
+						<Text className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">
+							Checkout
+						</Text>
+					</View>
+				</View>
+			</View>
+
+			<ScrollView
+				className="flex-1"
+				showsVerticalScrollIndicator={false}
+				contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 160 }}
+			>
+				<SectionTitle eyebrow="Delivery" title="Delivery Address" />
+				<View className="rounded-[28px] border border-white bg-white p-5 shadow-sm">
+					<View className="flex-row items-start gap-4">
+						<View className="h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50">
+							<Ionicons name="location-outline" size={22} color="#15803d" />
+						</View>
+
+						<View className="flex-1">
+							<View className="flex-row items-start justify-between gap-3">
+								<View className="flex-1">
+									<Text className="text-base font-bold text-slate-900">
+										{primaryAddress?.fullName ?? "Saved Address"}
+									</Text>
+									<Text className="mt-1 text-sm leading-6 text-slate-600">
+										{primaryAddress
+											? `${primaryAddress.street}, ${primaryAddress.city}${primaryAddress.postalCode ? `, ${primaryAddress.postalCode}` : ""}`
+											: "Add a delivery address to continue."}
+									</Text>
+									<Text className="mt-2 text-sm text-slate-500">
+										{primaryAddress?.phone ?? "No phone number saved"}
+									</Text>
+								</View>
+
+								<Pressable
+									onPress={() => setShowAddressDropdown((current) => !current)}
+									accessibilityRole="button"
+									accessibilityLabel="Change address"
+									className="rounded-full bg-slate-100 px-4 py-2 active:bg-slate-200"
+								>
+									<View className="flex-row items-center gap-1.5">
+										<Text className="text-sm font-semibold text-[#15803d]">Change</Text>
+										<Ionicons
+											name={showAddressDropdown ? "chevron-up" : "chevron-down"}
+											size={14}
+											color="#15803d"
+										/>
+									</View>
+								</Pressable>
+							</View>
+
+							{showAddressDropdown ? (
+								<View className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+									{addresses.map((address) => {
+										const isSelected = address.id === primaryAddress?.id;
+
+										return (
+											<Pressable
+												key={address.id}
+												onPress={() => {
+													updateAddress(address.id, {
+														label: address.label,
+														fullName: address.fullName,
+														phone: address.phone,
+														street: address.street,
+														city: address.city,
+														postalCode: address.postalCode,
+														isPrimary: true,
+													});
+													setShowAddressDropdown(false);
+												}}
+												className={`mb-1 rounded-xl border px-3 py-3 ${isSelected ? "border-[#15803d] bg-emerald-50" : "border-transparent bg-white"}`}
+												accessibilityRole="button"
+												accessibilityLabel={`Select ${address.label} address`}
+											>
+												<View className="flex-row items-center justify-between gap-3">
+													<View className="flex-1">
+														<Text className="text-sm font-bold text-slate-900">
+															{address.label}
+														</Text>
+														<Text className="mt-1 text-xs text-slate-600" numberOfLines={1}>
+															{address.street}
+														</Text>
+													</View>
+
+													{isSelected ? (
+														<Ionicons name="checkmark-circle" size={18} color="#15803d" />
+													) : (
+														<Ionicons name="ellipse-outline" size={18} color="#94a3b8" />
+													)}
+												</View>
+											</Pressable>
+										);
+									})}
+
+									<Pressable
+										onPress={() =>
+											router.push({
+												pathname: "/myAddress",
+												params: { returnTo: "/checkout" },
+											})
+										}
+										className="mt-1 rounded-xl bg-white px-3 py-2.5"
+										accessibilityRole="button"
+										accessibilityLabel="Manage addresses"
+									>
+										<Text className="text-center text-xs font-semibold text-[#15803d]">
+											Manage addresses
+										</Text>
+									</Pressable>
+								</View>
+							) : null}
+						</View>
+					</View>
+				</View>
+
+				<View className="mt-8">
+					<SectionTitle eyebrow="Payment" title="Payment Method" />
+					<View style={{ gap: 12 }}>
+						<RadioCard
+							active={paymentMethod === "card"}
+							icon="card-outline"
+							title="Credit / Debit Card"
+							subtitle="Secure online payment"
+							onPress={() => setPaymentMethod("card")}
+						/>
+						<RadioCard
+							active={paymentMethod === "cod"}
+							icon="cash-outline"
+							title="Cash on Delivery"
+							subtitle="Pay when your order arrives"
+							onPress={() => setPaymentMethod("cod")}
+						/>
+					</View>
+				</View>
+
+				<View className="mt-8 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+					<Text className="text-[11px] font-semibold uppercase tracking-[2.4px] text-slate-500">
+						Order Summary
+					</Text>
+
+					<View className="mt-4" style={{ gap: 2 }}>
+						<SummaryRow label="Subtotal" value={formatLkr(subtotal)} />
+						<SummaryRow label="Delivery Fee" value={formatLkr(DELIVERY_FEE)} />
+						<SummaryRow label="Discount" value={DISCOUNT > 0 ? `-${formatLkr(DISCOUNT)}` : formatLkr(0)} accent />
+
+						<View className="my-3 h-px bg-slate-200" />
+
+						<View className="flex-row items-end justify-between">
+							<Text className="text-lg font-bold text-slate-900">Total Amount</Text>
+							<Text className="text-3xl font-extrabold tracking-tight text-[#15803d]">
+								{formatLkr(total)}
+							</Text>
+						</View>
+					</View>
+				</View>
+
+				<View className="mt-8 mb-4 rounded-[28px] border border-dashed border-slate-300 bg-slate-50 p-5">
+					<View className="flex-row items-start gap-4">
+						<View className="h-12 w-12 items-center justify-center rounded-full bg-white">
+							<Ionicons name="leaf-outline" size={22} color="#15803d" />
+						</View>
+						<View className="flex-1">
+							<Text className="text-base font-bold text-slate-900">Eco-Friendly Delivery</Text>
+							<Text className="mt-1 text-sm leading-6 text-slate-600">
+								Delivered with a focus on low-emission and efficient routing for a cleaner city.
+							</Text>
+						</View>
+					</View>
+				</View>
+			</ScrollView>
+
+			<View className="absolute bottom-24 left-0 right-0 z-50 border-t border-slate-200/80 bg-white/95 px-4 pb-6 pt-4 backdrop-blur-md shadow-[0_-12px_30px_rgba(15,23,42,0.12)]">
+			
+
+				<Pressable
+					onPress={handlePlaceOrder}
+					disabled={cartItems.length === 0}
+					accessibilityRole="button"
+					accessibilityLabel="Place order"
+					 className="h-14 flex-row items-center justify-center rounded-2xl bg-[#15803d] active:bg-[#166534]"
+				>
+					<Text className="mr-2 text-base font-bold tracking-[0.8px] text-white">
+						Place Order
+					</Text>
+					<View className="ml-1 h-9 w-9 items-center justify-center rounded-full bg-white/15">
+						<Ionicons name="arrow-forward" size={18} color="#ffffff" />
+					</View>
+				</Pressable>
+			</View>
+		</SafeAreaView>
+	);
+}

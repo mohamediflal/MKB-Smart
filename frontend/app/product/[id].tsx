@@ -160,7 +160,7 @@ export default function ProductDetailsScreen() {
             <Image
               source={resolveImageSource(product.imageSource)}
               resizeMode="contain"
-              style={{ width: "100%", height: "100%" }}
+              style={{ width: "120%", height: "120%" }}
               accessibilityLabel={product.name}
               accessibilityIgnoresInvertColors
             />
@@ -186,34 +186,12 @@ export default function ProductDetailsScreen() {
                 <Ionicons name="share-outline" size={20} color="black" />
               </Pressable>
 
-              <Pressable
-                onPress={() => router.push("/cart")}
-                className="relative h-10 w-10 items-center justify-center rounded-full bg-white/90"
-                accessibilityRole="button"
-                accessibilityLabel={`Open cart with ${cartCount} items`}
-              >
-                <Ionicons name="cart-outline" size={20} color="black" />
-
-                {cartCount > 0 && (
-                  <View className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 py-0.5">
-                    <Text className="text-center text-[10px] font-bold leading-none text-white">
-                      {cartCount > 99 ? "99+" : cartCount}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
+              
             </View>
           </View>
         </View>
 
-        {/* Pager hint */}
-        <View className="mt-3 items-center justify-center">
-          <View className="flex-row items-center">
-            <View className="h-1.5 w-4 rounded-full bg-green-700" />
-            <View className="ml-2 h-1.5 w-1.5 rounded-full bg-slate-300" />
-          </View>
-        </View>
-
+        
         {/* Title + favorite */}
         <View className="mt-5 flex-row items-start justify-between px-4">
           <View className="flex-1 pr-3">
@@ -272,58 +250,58 @@ export default function ProductDetailsScreen() {
         <View className="mx-4 mt-6 h-px bg-slate-200" />
 
         {/* Product detail */}
-        <View className="px-4 pt-5">
-          <Text className="text-sm font-bold text-slate-900">Product Detail</Text>
-          <Text className="mt-2 text-xs leading-5 text-slate-500">
+        <View className="mx-4 mt-3 rounded-3xl border border-slate-200 bg-white px-4 py-5 shadow-sm">
+          <Text className="text-base font-extrabold tracking-tight text-slate-900">Product Detail</Text>
+          <Text className="mt-2.5 text-sm leading-6 text-slate-600">
             Apples are nutritious and naturally delicious. Enjoy as a healthy snack or add to meals for extra freshness.
           </Text>
         </View>
 
-        <View className="mx-4 mt-6 h-px bg-slate-200" />
+        <View className="mx-6 mt-5 h-px bg-slate-200/80" />
 
         {/* Nutritions */}
         <Pressable
-          className="flex-row items-center justify-between px-4 py-4"
+          className="mx-4 mt-4 flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
           accessibilityRole="button"
           accessibilityLabel="Open nutritions"
         >
-          <Text className="text-sm font-bold text-slate-900">Nutritions</Text>
+          <Text className="text-sm font-bold tracking-wide text-slate-900">Nutritions</Text>
           <View className="flex-row items-center">
-            <View className="mr-3 rounded-md bg-slate-100 px-2 py-1">
-              <Text className="text-[10px] font-semibold text-slate-500">100gr</Text>
+            <View className="mr-3 rounded-full bg-emerald-50 px-3 py-1">
+              <Text className="text-[10px] font-semibold text-emerald-700">Check with Ai</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </View>
         </Pressable>
 
-        <View className="mx-4 h-px bg-slate-200" />
+        <View className="mx-6 my-4 h-px bg-slate-200/80" />
 
         {/* Review */}
         <Pressable
-          className="flex-row items-center justify-between px-4 py-4"
+          className="mx-4 flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
           accessibilityRole="button"
           accessibilityLabel="Open reviews"
         >
-          <Text className="text-sm font-bold text-slate-900">Review</Text>
+          <Text className="text-sm font-bold tracking-wide text-slate-900">Review</Text>
           <View className="flex-row items-center">
-            <View className="mr-2 flex-row items-center">
+            <View className="mr-2 flex-row items-center rounded-full bg-amber-50 px-2 py-1">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Ionicons key={i} name="star" size={14} color="#f97316" />
+                <Ionicons key={i} name="star" size={13} color="#f59e0b" />
               ))}
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </View>
         </Pressable>
 
-        <View className="mx-4 h-px bg-slate-200" />
+        <View className="mx-6 my-4 h-px bg-slate-200/80" />
 
         {/* Similar Products */}
         <View className="px-4 pt-2">
-          <Text className="text-base font-bold text-slate-900">Similar Products</Text>
+          <Text className="text-lg font-extrabold tracking-tight text-slate-900">Similar Products</Text>
         </View>
 
         <View
-          className="mt-1 flex-row flex-wrap px-4"
+          className="mt-3 flex-row flex-wrap px-4"
           style={{ columnGap: similarColumnGap, rowGap: 12 }}
         >
           {similarProducts.map((p) => (
@@ -381,24 +359,41 @@ export default function ProductDetailsScreen() {
       </ScrollView>
 
       {/* Bottom actions */}
-      <View className="border-t border-slate-200 bg-white px-4 pb-2 pt-1">
-        <View style={{ flexDirection: "row", columnGap: 12 }}>
+      <View className="border-t border-slate-200 bg-white px-4 pb-5 pt-3">
+        <View style={{ flexDirection: "row", columnGap: 12, alignItems: "center" }}>
           <Pressable
-            className="flex-1 flex-row items-center justify-center rounded-2xl bg-green-700 py-4"
+            className="flex-1 flex-row items-center justify-center rounded-2xl bg-[#15803d] py-4 shadow-sm"
             accessibilityRole="button"
             accessibilityLabel="Add to cart"
             onPress={handleAddToCart}
           >
             <Ionicons name="cart-outline" size={20} color="white" />
-            <Text className="ml-2 text-sm font-bold text-white">Add to Cart</Text>
+            <Text className="ml-2 text-sm font-bold tracking-wide text-white">Add to Cart</Text>
           </Pressable>
 
           <Pressable
-            className="flex-1 flex-row items-center justify-center rounded-2xl border border-green-700 bg-white py-4"
+            className="flex-1 flex-row items-center justify-center rounded-2xl border border-[#15803d] bg-white py-4 shadow-sm"
             accessibilityRole="button"
             accessibilityLabel="Buy now"
           >
-            <Text className="text-sm font-bold text-green-700">Buy Now</Text>
+            <Text className="text-sm font-bold text-[#15803d]">Buy Now</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/cart")}
+            className="relative h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md"
+            accessibilityRole="button"
+            accessibilityLabel={`Open cart with ${cartCount} items`}
+          >
+            <Ionicons name="cart-outline" size={20} color="#0f172a" />
+
+            {cartCount > 0 && (
+              <View className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 py-0.5">
+                <Text className="text-center text-[10px] font-bold leading-none text-white">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>

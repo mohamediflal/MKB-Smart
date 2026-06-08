@@ -2,8 +2,7 @@ import React from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 function NotificationItem({
   icon,
@@ -32,17 +31,9 @@ function NotificationItem({
 }
 
 export default function NotificationPop() {
-  const navigation = useNavigation<any>();
   const router = useRouter();
-  const params = useLocalSearchParams<{ returnTo?: string }>();
-  const returnTo = typeof params.returnTo === "string" && params.returnTo.length > 0 ? params.returnTo : "/";
   const closeNotifications = () => {
-    if (navigation.canGoBack?.()) {
-      navigation.goBack();
-      return;
-    }
-
-    router.replace(returnTo as never);
+    router.back();
   };
 
   return (
