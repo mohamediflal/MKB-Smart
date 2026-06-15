@@ -1,16 +1,18 @@
-import React, { useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, Share, Text, useWindowDimensions, View } from "react-native";
+import React, { useMemo, useState, useEffect } from "react";
+import { Image, Pressable, ScrollView, Share, Text, useWindowDimensions, View, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
+import ProductCard from "@/components/ProductCard";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { BEST_SELLING } from "@/constants/bestSelling";
 import { RECOMMENDED } from "@/constants/recommended";
 import { PRODUCTS, type Product as CatalogProduct } from "@/constants/products";
-import { CATEGORIES } from "@/constants/categories";
+import { useCategories } from "@/context/CategoryContext";
 import { resolveImageSource } from "@/utils/resolveImageSource";
+import { API_BASE_URL } from "@/context/AuthContext";
 
 type DisplayProduct = {
   id: string;
@@ -19,6 +21,8 @@ type DisplayProduct = {
   price: string;
   imageSource: any;
   categorySlug?: string;
+  stock?: number;
+  status?: string;
 };
 
 function inferCategorySlug(
@@ -38,8 +42,9 @@ export default function ProductDetailsScreen() {
   const id = typeof params.id === "string" ? params.id : "";
 
   const { width } = useWindowDimensions();
+  const { categories } = useCategories();
 
-  const categorySlugs = useMemo(() => new Set(CATEGORIES.map((c) => c.slug)), []);
+  const categorySlugs = useMemo(() => new Set(categories.map((c) => c.slug)), [categories]);
   const categoryByName = useMemo(() => {
     const map = new Map<string, string>();
     for (const p of PRODUCTS) map.set(p.name, p.categorySlug);
@@ -76,7 +81,85 @@ export default function ProductDetailsScreen() {
     return map;
   }, [categoryByName, categorySlugs]);
 
-  const product = id ? productMap.get(id) : undefined;
+  const staticProduct = id ? productMap.get(id) : undefined;
+  const [dbProduct, setDbProduct] = useState<DisplayProduct | null>(null);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [dbProductsList, setDbProductsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!id) return;
+    if (staticProduct) {
+      setDbProduct(null);
+      return;
+    }
+
+    const fetchProduct = async () => {
+      try {
+        setDbLoading(true);
+        const res = await fetch(`${API_BASE_URL}/api/products/single/${id}`);
+        if (res.ok) {
+          const p = await res.json();
+          setDbProduct({
+            id: p.id,
+            name: p.name,
+            subtitle: `${p.unit || "piece"}, Price`,
+            price: `Rs. ${p.price}`,
+            imageSource: p.image ? { uri: p.image } : require("../../src/assets/images/vegetable.jpg"),
+            categorySlug: p.category?.slug || "",
+            stock: p.stock ?? 0,
+            status: p.status || "ACTIVE",
+          });
+        } else {
+          setDbProduct(null);
+        }
+      } catch (err) {
+        console.error("Error fetching product from DB:", err);
+        setDbProduct(null);
+      } finally {
+        setDbLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [id, staticProduct]);
+
+  useEffect(() => {
+    const fetchAllProducts = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/products/list`);
+        if (res.ok) {
+          const data = await res.json();
+          // Filter to only ACTIVE products
+          const activeOnly = data.filter((p: any) => p.status === 'ACTIVE');
+          const mapped = activeOnly.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            subtitle: `${p.unit || "piece"}, Price`,
+            price: `Rs. ${p.price}`,
+            imageSource: p.image ? { uri: p.image } : require("../../src/assets/images/vegetable.jpg"),
+            categorySlug: p.category?.slug || "",
+            stock: p.stock ?? 0,
+            status: p.status || "ACTIVE",
+          }));
+          setDbProductsList(mapped);
+        }
+      } catch (err) {
+        console.error("Error fetching all products for similar list:", err);
+      }
+    };
+    fetchAllProducts();
+  }, []);
+
+  const product = useMemo(() => {
+    if (staticProduct) {
+      return {
+        ...staticProduct,
+        stock: 99,
+        status: "ACTIVE",
+      };
+    }
+    return dbProduct;
+  }, [staticProduct, dbProduct]);
 
   const { isFavorite, toggleFavorite } = useFavorites();
   const { addItem, cartCount } = useCart();
@@ -84,18 +167,36 @@ export default function ProductDetailsScreen() {
 
   const [qty, setQty] = useState(1);
 
+  const isOutOfStock = product?.stock !== undefined && product.stock <= 0;
+  const isLowStock = product?.stock !== undefined && product.stock > 0 && product.stock < 15;
+
   const similarProducts = useMemo(() => {
-    if (!product) return [] as CatalogProduct[];
+    if (!product) return [] as any[];
     const categorySlug = product.categorySlug;
-    if (!categorySlug) return [] as CatalogProduct[];
+    if (!categorySlug) return [] as any[];
+
+    const matchedDb = dbProductsList.filter(
+      (p) =>
+        p.categorySlug === categorySlug &&
+        p.id !== product.id &&
+        p.name !== product.name
+    );
+
+    if (matchedDb.length > 0) {
+      return matchedDb.slice(0, 8);
+    }
 
     return PRODUCTS.filter(
       (p) =>
         p.categorySlug === categorySlug &&
         p.id !== product.id &&
         p.name !== product.name
-    ).slice(0, 8);
-  }, [product]);
+    ).map((p) => ({
+      ...p,
+      stock: 99,
+      status: "ACTIVE",
+    })).slice(0, 8);
+  }, [product, dbProductsList]);
 
   const similarColumnGap = 12;
   const similarColumns = 2;
@@ -126,6 +227,28 @@ export default function ProductDetailsScreen() {
     }
   };
 
+  if (dbLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
+        <View className="flex-row items-center px-4 py-3">
+          <Pressable
+            onPress={() => router.back()}
+            className="h-10 w-10 items-center justify-center rounded-full bg-slate-100"
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={20} color="black" />
+          </Pressable>
+          <Text className="ml-3 text-lg font-bold text-slate-900">Product</Text>
+        </View>
+        <View className="flex-1 items-center justify-center px-6">
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text className="mt-3 text-sm font-semibold text-slate-500">Loading product details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!product) {
     return (
       <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
@@ -142,6 +265,37 @@ export default function ProductDetailsScreen() {
         </View>
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-sm text-slate-500">Product not found.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (product && product.status !== "ACTIVE") {
+    return (
+      <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
+        <View className="flex-row items-center px-4 py-3">
+          <Pressable
+            onPress={() => router.back()}
+            className="h-10 w-10 items-center justify-center rounded-full bg-slate-100"
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={20} color="black" />
+          </Pressable>
+          <Text className="ml-3 text-lg font-bold text-slate-900">Product</Text>
+        </View>
+        <View className="flex-1 items-center justify-center px-6">
+          <Ionicons name="alert-circle-outline" size={64} color="#dc2626" />
+          <Text className="mt-4 text-lg font-bold text-slate-800">Product Unavailable</Text>
+          <Text className="mt-2 text-sm text-center text-slate-500">
+            This product is currently not active or unavailable.
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="mt-6 rounded-2xl bg-green-700 px-6 py-3 shadow-md"
+          >
+            <Text className="font-bold text-white">Go Back</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -201,6 +355,21 @@ export default function ProductDetailsScreen() {
             <Text className="mt-1 text-xs text-slate-500" numberOfLines={1}>
               {product.subtitle}
             </Text>
+            {isOutOfStock && (
+              <View className="mt-2.5 self-start rounded-lg bg-red-100 border border-red-200 px-2.5 py-1">
+                <Text className="text-[10px] font-extrabold text-red-700 uppercase tracking-wider">Out of Stock</Text>
+              </View>
+            )}
+            {isLowStock && (
+              <View className="mt-2.5 self-start rounded-lg bg-amber-100 border border-amber-200 px-2.5 py-1">
+                <Text className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider">Only {product.stock} left</Text>
+              </View>
+            )}
+            {product.stock !== undefined && product.stock >= 15 && (
+              <View className="mt-2.5 self-start rounded-lg bg-green-100 border border-green-200 px-2.5 py-1">
+                <Text className="text-[10px] font-extrabold text-green-700 uppercase tracking-wider">In Stock</Text>
+              </View>
+            )}
           </View>
 
           <Pressable
@@ -306,53 +475,21 @@ export default function ProductDetailsScreen() {
         >
           {similarProducts.map((p) => (
             <View key={p.id} style={{ width: similarItemWidth }}>
-              <Pressable
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${p.name}`}
+              <ProductCard
+                id={p.id}
+                name={p.name}
+                subtitle={p.subtitle}
+                price={p.price}
+                imageSource={p.imageSource}
+                containerClassName="w-full mr-0"
+                stock={p.stock}
                 onPress={() =>
                   router.push({
                     pathname: "/product/[id]",
                     params: { id: p.id },
                   })
                 }
-              >
-                <View className="relative h-28 w-full bg-slate-50">
-                  <Image
-                    source={resolveImageSource(p.imageSource)}
-                    resizeMode="cover"
-                    style={{ width: "100%", height: "100%" }}
-                    accessibilityIgnoresInvertColors
-                  />
-
-                  <Pressable
-                    className="absolute bottom-2 right-2 h-10 w-10 items-center justify-center rounded-full bg-green-700"
-                    accessibilityRole="button"
-                    accessibilityLabel={`Add ${p.name}`}
-                    onPress={(e) => {
-                      e.stopPropagation?.();
-                      addItem({
-                        id: p.id,
-                        name: p.name,
-                        subtitle: p.subtitle,
-                        price: p.price,
-                        imageSource: p.imageSource,
-                      });
-                    }}
-                  >
-                    <Ionicons name="add" size={22} color="white" />
-                  </Pressable>
-                </View>
-
-                <View className="px-3 pb-3 pt-2">
-                  <Text className="text-sm font-semibold text-slate-900" numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                  <Text className="mt-1 text-sm font-bold text-green-700" numberOfLines={1}>
-                    {p.price}
-                  </Text>
-                </View>
-              </Pressable>
+              />
             </View>
           ))}
         </View>
@@ -362,21 +499,36 @@ export default function ProductDetailsScreen() {
       <View className="border-t border-slate-200 bg-white px-4 pb-5 pt-3">
         <View style={{ flexDirection: "row", columnGap: 12, alignItems: "center" }}>
           <Pressable
-            className="flex-1 flex-row items-center justify-center rounded-2xl bg-[#15803d] py-4 shadow-sm"
+            className={`flex-1 flex-row items-center justify-center rounded-2xl py-4 shadow-sm ${
+              isOutOfStock ? "bg-slate-200" : "bg-[#15803d]"
+            }`}
             accessibilityRole="button"
-            accessibilityLabel="Add to cart"
+            accessibilityLabel={isOutOfStock ? "Product is out of stock" : "Add to cart"}
             onPress={handleAddToCart}
+            disabled={isOutOfStock}
           >
-            <Ionicons name="cart-outline" size={20} color="white" />
-            <Text className="ml-2 text-sm font-bold tracking-wide text-white">Add to Cart</Text>
+            <Ionicons name="cart-outline" size={20} color={isOutOfStock ? "#94a3b8" : "white"} />
+            <Text className={`ml-2 text-sm font-bold tracking-wide ${isOutOfStock ? "text-slate-400" : "text-white"}`}>
+              {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+            </Text>
           </Pressable>
 
           <Pressable
-            className="flex-1 flex-row items-center justify-center rounded-2xl border border-[#15803d] bg-white py-4 shadow-sm"
+            className={`flex-1 flex-row items-center justify-center rounded-2xl py-4 shadow-sm border ${
+              isOutOfStock ? "border-slate-200 bg-slate-50" : "border-[#15803d] bg-white"
+            }`}
             accessibilityRole="button"
-            accessibilityLabel="Buy now"
+            accessibilityLabel={isOutOfStock ? "Product is out of stock" : "Buy now"}
+            disabled={isOutOfStock}
+            onPress={() => {
+              if (isOutOfStock) return;
+              handleAddToCart();
+              router.push("/cart");
+            }}
           >
-            <Text className="text-sm font-bold text-[#15803d]">Buy Now</Text>
+            <Text className={`text-sm font-bold ${isOutOfStock ? "text-slate-400" : "text-[#15803d]"}`}>
+              Buy Now
+            </Text>
           </Pressable>
 
           <Pressable

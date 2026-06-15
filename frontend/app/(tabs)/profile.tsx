@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, API_BASE_URL } from "@/context/AuthContext";
 
 function MenuRow({
   icon,
@@ -87,6 +87,46 @@ export default function Profile() {
   if (!isAuthReady || !isAuthenticated) {
     return null;
   }
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action is permanent and cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await fetch(`${API_BASE_URL}/api/auth/delete-user`, {
+                method: "DELETE",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${user?.token}`
+                }
+              });
+
+              const data = await res.json();
+              if (res.ok) {
+                Alert.alert("Success", "Your account has been deleted successfully.");
+                logout();
+                router.replace("/");
+              } else {
+                Alert.alert("Error", data.message || "Failed to delete account.");
+              }
+            } catch (err) {
+              console.error(err);
+              Alert.alert("Error", "An error occurred while deleting your account.");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
@@ -215,11 +255,11 @@ export default function Profile() {
 
           <View className="pt-2 mt-3">
             <Pressable
+              onPress={handleDeleteAccount}
               className="flex-row items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm active:bg-slate-50"
               accessibilityRole="button"
               accessibilityLabel="Delete Account"
             >
-        
               <Text className="text-base font-bold text-red-600">Delete Account</Text>
             </Pressable>
 

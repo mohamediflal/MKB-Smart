@@ -5,9 +5,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import CategoryItem from "@/components/CategoryItem";
-import { CATEGORIES } from "@/constants/categories";
+import { useCategories } from "@/context/CategoryContext";
 
 export default function CategoriesScreen() {
+  const { categories } = useCategories();
   const router = useRouter();
   const { width } = useWindowDimensions();
 
@@ -38,7 +39,7 @@ export default function CategoriesScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="flex-row flex-wrap" style={{ columnGap, rowGap: 16 }}>
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <View key={category.label} style={{ width: itemWidth }}>
               <CategoryItem
                 label={category.label}

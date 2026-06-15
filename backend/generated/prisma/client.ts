@@ -52,11 +52,6 @@ export type User = Prisma.UserModel
  */
 export type Admin = Prisma.AdminModel
 /**
- * Model SuperAdmin
- * 
- */
-export type SuperAdmin = Prisma.SuperAdminModel
-/**
  * Model Category
  * 
  */
@@ -71,6 +66,11 @@ export type Address = Prisma.AddressModel
  * 
  */
 export type Product = Prisma.ProductModel
+/**
+ * Model Favorite
+ * 
+ */
+export type Favorite = Prisma.FavoriteModel
 /**
  * Model Order
  * 

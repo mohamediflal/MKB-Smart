@@ -61,7 +61,7 @@ const getApiBaseUrl = () => {
   return "http://192.168.100.253:3000";
 };
 
-const API_BASE_URL = getApiBaseUrl();
+export const API_BASE_URL = getApiBaseUrl();
 
 const STORAGE_KEY = "@mkb_grocery_auth";
 
