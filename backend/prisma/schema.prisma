@@ -7,108 +7,149 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum AdminStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model User {
-  id        String    @id @default(uuid())
+  id        String       @id @default(uuid())
   name      String
-  email     String    @unique
+  email     String       @unique
   password  String
-  avatar    String?   @default("")
+  avatar    String?      @default("")
+
+  status    UserStatus   @default(ACTIVE)
 
   addresses Address[]
   orders    Order[]
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  favorites Favorite[]
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 }
 
 model Admin {
-  id        String   @id @default(uuid())
+  id        String       @id @default(uuid())
   name      String
-  email     String   @unique
+  email     String       @unique
   password  String
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    AdminStatus   @default(PENDING)
+
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 }
 
 model Category {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  slug        String    @unique
+  id          String     @id @default(uuid())
+  name        String     @unique
+  slug        String     @unique
   image       String?
 
   products    Product[]
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
 model Address {
-  id        String   @id @default(uuid())
-  userId    String
+  id         String      @id @default(uuid())
+  userId     String
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  label     String
-  phone     String?   @default("")
-  address   String
-  city      String
-  district     String
-  zip       String
+  fullName   String
+  label      String
+  phone      String?     @default("")
+  address    String
+  city       String
+  district   String
+  zip        String
 
-  isDefault Boolean  @default(false)
+  isDefault  Boolean     @default(false)
 
-  lat       Float
-  lng       Float
+  lat        Float
+  lng        Float
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 }
 
 model Product {
-  id            String    @id @default(uuid())
+  id            String      @id @default(uuid())
   name          String
-  description   String?   @default("")
+  description   String?     @default("")
   price         Float
-  originalPrice Float?    @default(0)
+  originalPrice Float?      @default(0)
 
   image         String
 
   categoryId    String
-  category      Category  @relation(fields: [categoryId], references: [id])
+  category      Category    @relation(fields: [categoryId], references: [id])
 
-  unit          String?   @default("piece")
-  stock         Int?      @default(0)
+  unit          String?     @default("piece")
+  stock         Int?        @default(0)
+  status        ProductStatus @default(ACTIVE)
 
-  isOrganic     Boolean?  @default(false)
+  isOrganic     Boolean?    @default(false)
 
-  rating        Float?    @default(0)
-  reviewCount   Int?      @default(0)
+  rating        Float?      @default(0)
+  reviewCount   Int?        @default(0)
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  favorites     Favorite[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Favorite {
+  id         String    @id @default(uuid())
+
+  userId     String
+  productId  String
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, productId])
 }
 
 model Order {
-  id                String   @id @default(uuid())
+  id                String     @id @default(uuid())
 
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   items             Json
+
   shippingAddress   Json
 
-  paymentMethod     String   @default("card")
+  paymentMethod     String     @default("card")
 
   subtotal          Float
-  deliveryFee       Float?   @default(0)
+  deliveryFee       Float?     @default(0)
   total             Float
 
-  status            String   @default("Placed")
+  status            String     @default("Placed")
   statusHistory     Json
 
-  isPaid            Boolean? @default(false)
+  isPaid            Boolean?   @default(false)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 }

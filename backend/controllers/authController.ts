@@ -106,7 +106,34 @@ export const login = async (req: Request, res: Response) => {
 
 // show all users for super admin only
 export const listUsers = async (req: Request & { userId?: string }, res: Response) => {
+    try {
+        const users = await prisma.user.findMany({
+            include: {
+                orders: true
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
 
+        const mappedUsers = users.map(u => {
+            const totalSpent = u.orders.reduce((sum, o) => sum + (o.total || 0), 0);
+            return {
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                orders: u.orders.length,
+                spent: totalSpent,
+                joined: u.createdAt.toISOString().slice(0, 10),
+                status: u.status === 'ACTIVE' ? 'Active' : 'Suspended'
+            };
+        });
+
+        res.status(200).json(mappedUsers);
+    } catch (error: any) {
+        console.error('List Users Error:', error);
+        res.status(500).json({ message: error.message || 'Internal server error' });
+    }
 }
 
 // update user details by user themselves
@@ -116,7 +143,30 @@ export const updateUser = async (req: Request & { userId?: string }, res: Respon
 
 // delete user account by super admin or by user themselves
 export const deleteUser = async (req: Request & { userId?: string }, res: Response) => {
+    try {
+        const id = req.body.id || req.query.id || req.userId;
 
+        if (!id) {
+            return res.status(400).json({ message: 'User ID is required' });
+        }
+
+        const existing = await prisma.user.findUnique({
+            where: { id }
+        });
+
+        if (!existing) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        await prisma.user.delete({
+            where: { id }
+        });
+
+        res.status(200).json({ success: true, message: 'User removed successfully' });
+    } catch (error: any) {
+        console.error('Delete User Error:', error);
+        res.status(500).json({ message: error.message || 'Internal server error' });
+    }
 }
 
 
@@ -149,11 +199,19 @@ export const adminRegister = async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    let initialStatus: 'PENDING' | 'ACTIVE' | 'SUSPENDED' = 'PENDING'
+    if (req.body.status === 'Active' || req.body.status === 'ACTIVE') {
+        initialStatus = 'ACTIVE'
+    } else if (req.body.status === 'Suspended' || req.body.status === 'SUSPENDED' || req.body.status === 'Inactive') {
+        initialStatus = 'SUSPENDED'
+    }
+
     const admin = await prisma.admin.create({
         data: {
             name,
             email: normalizedEmail,
             password: hashedPassword,
+            status: initialStatus,
         },
     })
 
@@ -192,6 +250,10 @@ export const adminLogin = async (req: Request, res: Response) => {
         return res.status(401).json({ message: 'Invalid credentials' })
     }
 
+    if (admin.status === 'SUSPENDED') {
+        return res.status(403).json({ message: 'Your admin account has been suspended' })
+    }
+
     const isMatch = await bcrypt.compare(password, admin.password)
     if (!isMatch) {
         return res.status(401).json({ message: 'Wrong password' })
@@ -208,17 +270,101 @@ export const adminLogin = async (req: Request, res: Response) => {
 
 // show all admins for super admin only
 export const listAdmins = async (req: Request & { userId?: string }, res: Response) => {
+    try {
+        const admins = await prisma.admin.findMany({
+            orderBy: {
+                createdAt: 'desc'
+            }
+        })
 
+        const mappedAdmins = admins.map(a => {
+            const isSuperAdmin = getSuperAdmin(a.email)
+            return {
+                id: a.id,
+                name: a.name,
+                email: a.email,
+                role: isSuperAdmin ? 'super_admin' : 'admin',
+                lastActive: a.updatedAt.toISOString().slice(0, 16).replace('T', ' '),
+                status: a.status === 'ACTIVE' ? 'Active' : a.status === 'PENDING' ? 'Pending' : 'Suspended',
+            }
+        })
+
+        res.status(200).json(mappedAdmins)
+    } catch (error: any) {
+        console.error('List Admins Error:', error)
+        res.status(500).json({ message: error.message || 'Internal server error' })
+    }
 }
 
-// Update admin details by super admin or by admin themselves
+// Update admin details by super admin
 export const updateAdmin = async (req: Request & { userId?: string }, res: Response) => {
+    try {
+        const { id, name, status } = req.body
 
+        if (!id) {
+            return res.status(400).json({ message: 'Admin ID is required' })
+        }
+
+        const data: any = {}
+        if (name) data.name = name.trim()
+        if (status) {
+            data.status = status === 'Active' || status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED'
+        }
+
+        const updated = await prisma.admin.update({
+            where: { id },
+            data
+        })
+
+        const isSuperAdmin = getSuperAdmin(updated.email)
+        const safeAdmin = {
+            id: updated.id,
+            name: updated.name,
+            email: updated.email,
+            role: isSuperAdmin ? 'super_admin' : 'admin',
+            lastActive: updated.updatedAt.toISOString().slice(0, 16).replace('T', ' '),
+            status: updated.status === 'ACTIVE' ? 'Active' : updated.status === 'PENDING' ? 'Pending' : 'Suspended',
+        }
+
+        res.status(200).json({ success: true, message: 'Admin updated successfully', admin: safeAdmin })
+    } catch (error: any) {
+        console.error('Update Admin Error:', error)
+        res.status(500).json({ message: error.message || 'Internal server error' })
+    }
 }
 
 // Delete admin account by super admin
 export const deleteAdmin = async (req: Request & { userId?: string }, res: Response) => {
+    try {
+        // Support both request body and query param
+        const id = req.body.id || req.query.id || req.body.productId // fallback
 
+        if (!id) {
+            return res.status(400).json({ message: 'Admin ID is required' })
+        }
+
+        const existing = await prisma.admin.findUnique({
+            where: { id }
+        })
+
+        if (!existing) {
+            return res.status(404).json({ message: 'Admin not found' })
+        }
+
+        // Prevent deleting the super admin
+        if (getSuperAdmin(existing.email)) {
+            return res.status(403).json({ message: 'Cannot delete super admin account' })
+        }
+
+        await prisma.admin.delete({
+            where: { id }
+        })
+
+        res.status(200).json({ success: true, message: 'Admin removed successfully' })
+    } catch (error: any) {
+        console.error('Delete Admin Error:', error)
+        res.status(500).json({ message: error.message || 'Internal server error' })
+    }
 }
 
 // Login for Super Admin
@@ -255,4 +401,53 @@ export const superAdminLogin = async (req: Request, res: Response) => {
     const token = generateToken({ id: adminData.id, email: adminData.email, role: 'superadmin' })
 
     return res.status(200).json({ message: 'Super admin login successful', admin: adminData, token })
+}
+
+// Get logged in admin profile
+export const getAdminProfile = async (req: Request & { admin?: any }, res: Response) => {
+    try {
+        if (!req.admin) {
+            return res.status(401).json({ message: 'Unauthorized' })
+        }
+        res.status(200).json(req.admin)
+    } catch (error: any) {
+        console.error('Get Admin Profile Error:', error)
+        res.status(500).json({ message: error.message || 'Internal server error' })
+    }
+}
+
+// Update user status by super admin
+export const updateUserStatus = async (req: Request, res: Response) => {
+    try {
+        const { id, status } = req.body;
+
+        if (!id) {
+            return res.status(400).json({ message: 'User ID is required' });
+        }
+
+        if (!status) {
+            return res.status(400).json({ message: 'Status is required' });
+        }
+
+        const dbStatus = status === 'Active' || status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED';
+
+        const updated = await prisma.user.update({
+            where: { id },
+            data: { status: dbStatus }
+        });
+
+        res.status(200).json({ 
+            success: true, 
+            message: 'User status updated successfully', 
+            user: {
+                id: updated.id,
+                name: updated.name,
+                email: updated.email,
+                status: updated.status === 'ACTIVE' ? 'Active' : 'Suspended'
+            } 
+        });
+    } catch (error: any) {
+        console.error('Update User Status Error:', error);
+        res.status(500).json({ message: error.message || 'Internal server error' });
+    }
 }

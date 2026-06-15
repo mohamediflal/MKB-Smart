@@ -7,6 +7,9 @@ import productRouter from './routes/productRoute.js';
 import orderRouter from './routes/orderRoute.js';
 import addressRouter from './routes/addressRoute.js';
 import categoryRouter from './routes/categoryRoute.js';
+import favoriteRouter from './routes/favoriteRoute.js';
+// TODO: uncomment once uploadRoute.ts is created
+// import uploadRouter from './routes/uploadRoute.js';
 
 const app = express();
 
@@ -23,6 +26,8 @@ app.use('/api/products', productRouter);
 app.use('/api/orders', orderRouter);
 app.use('/api/address', addressRouter);
 app.use('/api/categories', categoryRouter);
+app.use('/api/favorites', favoriteRouter);
+
 
 //Error handling
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {
