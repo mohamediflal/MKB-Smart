@@ -48,6 +48,7 @@ export async function login(email, password, role = 'admin') {
 				.toUpperCase(),
 			token: data.token,
 			isSuperAdmin: !!admin.isSuperAdmin,
+			status: admin.status === 'ACTIVE' || admin.status === 'Active' ? 'Active' : (admin.status === 'PENDING' || admin.status === 'Pending' ? 'Pending' : 'Suspended'),
 		}
 		if (typeof window !== 'undefined') localStorage.setItem(SESSION_KEY, JSON.stringify(user))
 		return user

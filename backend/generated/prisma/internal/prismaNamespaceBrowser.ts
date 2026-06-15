@@ -53,10 +53,10 @@ export const AnyNull = runtime.AnyNull
 export const ModelName = {
   User: 'User',
   Admin: 'Admin',
-  SuperAdmin: 'SuperAdmin',
   Category: 'Category',
   Address: 'Address',
   Product: 'Product',
+  Favorite: 'Favorite',
   Order: 'Order'
 } as const
 
@@ -82,6 +82,7 @@ export const UserScalarFieldEnum = {
   email: 'email',
   password: 'password',
   avatar: 'avatar',
+  status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -93,24 +94,13 @@ export const AdminScalarFieldEnum = {
   id: 'id',
   name: 'name',
   email: 'email',
-  phone: 'phone',
   password: 'password',
+  status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type AdminScalarFieldEnum = (typeof AdminScalarFieldEnum)[keyof typeof AdminScalarFieldEnum]
-
-
-export const SuperAdminScalarFieldEnum = {
-  id: 'id',
-  email: 'email',
-  password: 'password',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-} as const
-
-export type SuperAdminScalarFieldEnum = (typeof SuperAdminScalarFieldEnum)[keyof typeof SuperAdminScalarFieldEnum]
 
 
 export const CategoryScalarFieldEnum = {
@@ -128,6 +118,7 @@ export type CategoryScalarFieldEnum = (typeof CategoryScalarFieldEnum)[keyof typ
 export const AddressScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  fullName: 'fullName',
   label: 'label',
   phone: 'phone',
   address: 'address',
@@ -154,6 +145,7 @@ export const ProductScalarFieldEnum = {
   categoryId: 'categoryId',
   unit: 'unit',
   stock: 'stock',
+  status: 'status',
   isOrganic: 'isOrganic',
   rating: 'rating',
   reviewCount: 'reviewCount',
@@ -162,6 +154,16 @@ export const ProductScalarFieldEnum = {
 } as const
 
 export type ProductScalarFieldEnum = (typeof ProductScalarFieldEnum)[keyof typeof ProductScalarFieldEnum]
+
+
+export const FavoriteScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  productId: 'productId',
+  createdAt: 'createdAt'
+} as const
+
+export type FavoriteScalarFieldEnum = (typeof FavoriteScalarFieldEnum)[keyof typeof FavoriteScalarFieldEnum]
 
 
 export const OrderScalarFieldEnum = {

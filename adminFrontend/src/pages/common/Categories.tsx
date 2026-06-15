@@ -1,108 +1,151 @@
 // @ts-nocheck
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Tag, X, ImagePlus, ShoppingCart, CheckCircle2, Pencil, Trash2 } from "lucide-react";
-import { Card, PageHeader, categories, addCategory } from "../index";
+import { Card, PageHeader, getSession } from "../index";
+
+const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
 export default function Categories() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const [categoryName, setCategoryName] = useState("");
-  const [categoriesList, setCategoriesList] = useState(categories || []);
+  const [categoriesList, setCategoriesList] = useState([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/categories/list`);
+      if (res.ok) {
+        const data = await res.json();
+        setCategoriesList(data);
+      }
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const url = URL.createObjectURL(file);
       setImagePreview(url);
-      setShowUrlInput(false);
     }
-  };
-
-  const handleUrlChange = (e) => {
-    setImageUrl(e.target.value);
-    setImagePreview(e.target.value);
   };
 
   const handleEdit = (c) => {
     setEditingId(c.id);
     setCategoryName(c.name);
-    // If emoji is an image URL, set it
     setImagePreview(typeof c.emoji === 'string' && (c.emoji.startsWith('http') || c.emoji.startsWith('blob')) ? c.emoji : null);
-    setImageUrl("");
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
-  const [deletingId, setDeletingId] = useState(null);
-
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deletingId) {
-      setCategoriesList(categoriesList.filter(c => c.id !== deletingId));
-      
-      const idx = categories.findIndex((c) => c.id === deletingId);
-      if (idx !== -1) {
-        categories.splice(idx, 1);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("grocery_categories_mkb_v4", JSON.stringify(categories));
+      try {
+        const session = getSession();
+        const token = session?.token;
+        const headers = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
         }
-      }
 
-      setToastMessage("Category deleted");
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-      setDeletingId(null);
+        const res = await fetch(`${API_BASE}/api/categories/delete/${deletingId}`, {
+          method: "DELETE",
+          headers,
+        });
+
+        if (res.ok) {
+          setCategoriesList(categoriesList.filter(c => c.id !== deletingId));
+          setToastMessage("Category deleted");
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+        } else {
+          const errData = await res.json();
+          alert(errData.message || "Failed to delete category");
+        }
+      } catch (err) {
+        console.error("Error deleting category:", err);
+      } finally {
+        setDeletingId(null);
+      }
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!categoryName.trim()) return;
 
-    if (editingId) {
-      setCategoriesList((categoriesList || []).map(c => 
-        c.id === editingId ? { ...c, name: categoryName, emoji: imagePreview || "📦" } : c
-      ));
+    try {
+      const session = getSession();
+      const token = session?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
 
-      const idx = categories.findIndex((c) => c.id === editingId);
-      if (idx !== -1) {
-        categories[idx] = { ...categories[idx], name: categoryName, emoji: imagePreview || "📦" };
-        if (typeof window !== "undefined") {
-          localStorage.setItem("grocery_categories_mkb_v4", JSON.stringify(categories));
+      const formData = new FormData();
+      formData.append("name", categoryName.trim());
+      if (selectedFile) {
+        formData.append("image", selectedFile);
+      }
+
+      if (editingId) {
+        const res = await fetch(`${API_BASE}/api/categories/update/${editingId}`, {
+          method: "PUT",
+          headers,
+          body: formData,
+        });
+
+        if (res.ok) {
+          fetchCategories();
+          setToastMessage("Category updated");
+          setIsModalOpen(false);
+          setCategoryName("");
+          setImagePreview(null);
+          setSelectedFile(null);
+          setEditingId(null);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+        } else {
+          const errData = await res.json();
+          alert(errData.message || "Failed to update category");
+        }
+      } else {
+        const res = await fetch(`${API_BASE}/api/categories/add`, {
+          method: "POST",
+          headers,
+          body: formData,
+        });
+
+        if (res.ok) {
+          fetchCategories();
+          setToastMessage("Category added");
+          setIsModalOpen(false);
+          setCategoryName("");
+          setImagePreview(null);
+          setSelectedFile(null);
+          setEditingId(null);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+        } else {
+          const errData = await res.json();
+          alert(errData.message || "Failed to add category");
         }
       }
-
-      setToastMessage("Category updated");
-    } else {
-      const newCat = {
-        id: `c-${Date.now()}`,
-        name: categoryName,
-        emoji: imagePreview || "📦",
-        productCount: 0,
-        revenue: 0
-      };
-      setCategoriesList([...(categoriesList || []), newCat]);
-
-      categories.push(newCat);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("grocery_categories_mkb_v4", JSON.stringify(categories));
-      }
-
-      setToastMessage("Category added");
+    } catch (err) {
+      console.error("Error saving category:", err);
+      alert("An error occurred while saving the category.");
     }
-    
-    setIsModalOpen(false);
-    setCategoryName("");
-    setImagePreview(null);
-    setImageUrl("");
-    setShowUrlInput(false);
-    setEditingId(null);
-
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
   };
 
   const safeList = categoriesList || [];
@@ -117,7 +160,7 @@ export default function Categories() {
             setEditingId(null);
             setCategoryName("");
             setImagePreview(null);
-            setImageUrl("");
+            setSelectedFile(null);
             setIsModalOpen(true);
           }}
           className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90 transition-colors cursor-pointer"
@@ -253,4 +296,3 @@ export default function Categories() {
     </div>
   );
 }
-

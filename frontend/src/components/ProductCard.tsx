@@ -16,6 +16,7 @@ type ProductCardProps = {
   onPress?: () => void;
   onAdd?: () => void;
   containerClassName?: string;
+  stock?: number;
 };
 
 export default function ProductCard({
@@ -27,14 +28,19 @@ export default function ProductCard({
   onPress,
   onAdd,
   containerClassName,
+  stock,
 }: ProductCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { addItem } = useCart();
   const favorite = isFavorite(id);
   const resolvedImageSource = resolveImageSource(imageSource);
 
+  const isOutOfStock = stock !== undefined && stock <= 0;
+  const isLowStock = stock !== undefined && stock > 0 && stock < 15;
+
   const className =
     "overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm " +
+    (isOutOfStock ? "opacity-60 " : "") +
     (containerClassName ?? "mr-4 w-48");
 
   const [loading, setLoading] = useState(false);
@@ -47,6 +53,17 @@ export default function ProductCard({
   const cardBody = (
     <>
       <View className="relative items-center justify-center overflow-hidden bg-slate-50 p-3" style={{ height: 130 }}>
+        {isOutOfStock && (
+          <View className="absolute left-2 top-2 z-10 rounded-lg bg-red-600 px-2 py-0.5 shadow-sm">
+            <Text className="text-[9px] font-extrabold text-white uppercase tracking-wider">Out of Stock</Text>
+          </View>
+        )}
+        {isLowStock && (
+          <View className="absolute left-2 top-2 z-10 rounded-lg bg-amber-500 px-2 py-0.5 shadow-sm">
+            <Text className="text-[9px] font-extrabold text-white uppercase tracking-wider">Only {stock} left</Text>
+          </View>
+        )}
+
         {!error ? (
           <>
             <Image
@@ -108,25 +125,31 @@ export default function ProductCard({
 
         <View className="mt-0 flex-row items-center justify-between">
           <Text className="text-lg font-extrabold text-slate-900">{price}</Text>
-          <Pressable
-            className="h-8 w-8 items-center justify-center rounded-full bg-[#15803d]"
-            style={{ backgroundColor: "#15803d", elevation: 4, zIndex: 2 }}
-            onPress={(e) => {
-              e.stopPropagation?.();
-              addItem({
-                id,
-                name,
-                subtitle,
-                price,
-                imageSource,
-              });
-              onAdd?.();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`Add ${name}`}
-          >
-            <Ionicons name="add" size={20} color="white" />
-          </Pressable>
+          {isOutOfStock ? (
+            <View className="h-8 w-8 items-center justify-center rounded-full bg-slate-200">
+              <Ionicons name="close" size={16} color="#94a3b8" />
+            </View>
+          ) : (
+            <Pressable
+              className="h-8 w-8 items-center justify-center rounded-full bg-[#15803d]"
+              style={{ backgroundColor: "#15803d", elevation: 4, zIndex: 2 }}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                addItem({
+                  id,
+                  name,
+                  subtitle,
+                  price,
+                  imageSource,
+                });
+                onAdd?.();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${name}`}
+            >
+              <Ionicons name="add" size={20} color="white" />
+            </Pressable>
+          )}
         </View>
       </View>
     </>

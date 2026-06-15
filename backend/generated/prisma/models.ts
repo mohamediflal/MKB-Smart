@@ -10,9 +10,9 @@
  */
 export type * from './models/User.ts'
 export type * from './models/Admin.ts'
-export type * from './models/SuperAdmin.ts'
 export type * from './models/Category.ts'
 export type * from './models/Address.ts'
 export type * from './models/Product.ts'
+export type * from './models/Favorite.ts'
 export type * from './models/Order.ts'
 export type * from './commonInputTypes.ts'
