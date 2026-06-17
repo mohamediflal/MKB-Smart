@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, Search, Pencil, Trash2, Printer, X, Check, CheckCircle2 } from "lucide-react";
-import { Card, PageHeader, orders, statusColor, products } from "../index";
+import { Card, PageHeader, statusColor, products, getSession } from "../index";
 import { jsPDF } from "jspdf";
 
 /**
@@ -81,10 +81,12 @@ function downloadInvoicePDF(order, items) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(...TEXT_MUTED);
-  const cleanEmail = order.customer.toLowerCase().replace(/\s+/g, ".") + "@mail.com";
-  doc.text(cleanEmail, 110, infoStartY + 12);
-  doc.text("15 Keppetipola Rd", 110, infoStartY + 18);
-  doc.text("Badulla, Sri Lanka", 110, infoStartY + 24);
+  doc.text(order.customerEmail || "customer@mail.com", 110, infoStartY + 12);
+  
+  const street = order.rawOrder?.shippingAddress?.street || "15 Keppetipola Rd";
+  const city = order.rawOrder?.shippingAddress?.city || "Badulla, Sri Lanka";
+  doc.text(street, 110, infoStartY + 18);
+  doc.text(city, 110, infoStartY + 24);
 
   const summaryBoxY = infoStartY + 32;
   doc.setFillColor(...LIGHT_GRAY);
@@ -103,9 +105,9 @@ function downloadInvoicePDF(order, items) {
   doc.setTextColor(...TEXT_DARK);
   doc.text("Order Status:", 115, summaryBoxY + 9);
 
-  const status = order.status || "Pending";
+  const status = order.status || "Placed";
   let statusClr = PRIMARY_COLOR;
-  if (status === "Pending") statusClr = [217, 119, 6];
+  if (status === "Placed" || status === "Pending") statusClr = [217, 119, 6];
   if (status === "Cancelled") statusClr = [225, 29, 72];
   if (status === "Processing") statusClr = [14, 165, 233];
   if (status === "Shipped") statusClr = [139, 92, 246];
@@ -187,37 +189,96 @@ function downloadInvoicePDF(order, items) {
   doc.save(filename);
 }
 
-const STATUSES = ["All", "Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
+const STATUSES = ["All", "Placed", "Processing", "Shipped", "Delivered", "Cancelled"];
 
 export default function Orders() {
-  const [ordersList, setOrdersList] = useState(orders);
+  const [ordersList, setOrdersList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [q, setQ] = useState("");
   const [st, setSt] = useState("All");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
-  const handleStatusChange = (orderId, newStatus) => {
-    const updated = ordersList.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
-    setOrdersList(updated);
-    
-    // Update global store
-    const idx = orders.findIndex(o => o.id === orderId);
-    if (idx !== -1) {
-      orders[idx].status = newStatus;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("grocery_orders", JSON.stringify(orders));
-      }
-    }
-    
-    // Update selectedOrder if it is currently open
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
-    }
+  const fetchOrders = async () => {
+    const session = getSession();
+    const token = session?.token;
+    const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
-    setToastMessage(`Order status updated to ${newStatus}`);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+    try {
+      const res = await fetch(`${base}/api/orders/all-orders`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.orders)) {
+        const mapped = data.orders.map(order => {
+          const totalItems = Array.isArray(order.items) 
+            ? order.items.reduce((sum, it) => sum + (it.quantity || 1), 0) 
+            : 1;
+
+          return {
+            id: order.id,
+            customer: order.shippingAddress?.fullName || 'Guest Customer',
+            customerEmail: order.shippingAddress?.email || `${(order.shippingAddress?.fullName || 'guest').toLowerCase().replace(/\s+/g, '.')}@mail.com`,
+            amount: order.total,
+            status: order.status === 'Pending' ? 'Placed' : order.status,
+            date: new Date(order.createdAt).toISOString().slice(0, 10),
+            items: totalItems,
+            payment: order.paymentMethod === 'cod' ? 'Cash' : 'Card',
+            rawOrder: order
+          };
+        });
+        setOrdersList(mapped);
+      }
+    } catch (error) {
+      console.error("Failed to fetch orders:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    const session = getSession();
+    const token = session?.token;
+    const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+    try {
+      const res = await fetch(`${base}/api/orders/update-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          orderId,
+          status: newStatus
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder(prev => ({ ...prev, status: newStatus }));
+        }
+
+        setToastMessage(`Order status updated to ${newStatus}`);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+      } else {
+        alert(data.message || "Failed to update order status");
+      }
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      alert("Network error: failed to update order status");
+    }
   };
 
   const handlePrint = (order) => {
@@ -230,6 +291,21 @@ export default function Orders() {
   };
 
   const getOrderItems = (order) => {
+    if (order.rawOrder && Array.isArray(order.rawOrder.items)) {
+      return order.rawOrder.items.map(item => {
+        const price = typeof item.price === 'number'
+          ? item.price
+          : Number(String(item.price).replace(/[^0-9.]/g, "")) || 0;
+        return {
+          name: item.name,
+          qty: item.quantity,
+          price: price,
+          total: price * item.quantity
+        };
+      });
+    }
+
+    // Fallback logic
     const orderIdNum = parseInt(order.id.replace(/\D/g, ""), 10) || 0;
     
     const availableProducts = products.length > 0 ? products : [
@@ -314,61 +390,69 @@ export default function Orders() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-[15px] text-slate-900 border-b border-border">
-              <tr>
-                <th className="px-6 py-3 text-left font-medium">Order ID</th>
-                <th className="px-6 py-3 text-left font-medium">Customer</th>
-                <th className="px-6 py-3 text-left font-medium">Items</th>
-                <th className="px-6 py-3 text-left font-medium">Payment</th>
-                <th className="px-6 py-3 text-left font-medium">Total</th>
-                <th className="px-6 py-3 text-left font-medium">Status</th>
-                <th className="px-6 py-3 text-left font-medium">Date</th>
-                <th className="px-6 py-3 text-center font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.length === 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <span className="text-sm text-muted-foreground">Loading orders from database...</span>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-[15px] text-slate-900 dark:text-slate-100 border-b border-border">
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
-                    No orders found.
-                  </td>
+                  <th className="px-6 py-3 text-left font-medium">Order ID</th>
+                  <th className="px-6 py-3 text-left font-medium">Customer</th>
+                  <th className="px-6 py-3 text-left font-medium">Items</th>
+                  <th className="px-6 py-3 text-left font-medium">Payment</th>
+                  <th className="px-6 py-3 text-left font-medium">Total</th>
+                  <th className="px-6 py-3 text-left font-medium">Status</th>
+                  <th className="px-6 py-3 text-left font-medium">Date</th>
+                  <th className="px-6 py-3 text-center font-medium">Actions</th>
                 </tr>
-              ) : (
-                list.map((o) => (
-                  <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                    <td className="px-6 py-3 font-medium text-slate-900 dark:text-white">{o.id}</td>
-                    <td className="px-6 py-3 text-foreground">{o.customer}</td>
-                    <td className="px-6 py-3 text-foreground">{o.items}</td>
-                    <td className="px-6 py-3 text-foreground">{o.payment}</td>
-                    <td className="px-6 py-3 text-foreground">Rs. {o.amount.toFixed(2)}</td>
-                    <td className="px-6 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusColor(o.status)}`}>{o.status}</span>
-                    </td>
-                    <td className="px-6 py-3 text-foreground">{o.date}</td>
-                    <td className="px-6 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2 text-foreground">
-                        <button 
-                          onClick={() => setSelectedOrder(o)}
-                          className="rounded-md p-1.5 hover:bg-accent hover:text-foreground cursor-pointer"
-                          title="View Details"
-                        >
-                          <Eye size={20} />
-                        </button>
-                        <button 
-                          onClick={() => handlePrint(o)}
-                          className="rounded-md p-1.5 hover:bg-accent hover:text-foreground cursor-pointer"
-                          title="Print Invoice"
-                        >
-                          <Printer size={20} />
-                        </button>
-                      </div>
+              </thead>
+              <tbody>
+                {list.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
+                      No orders found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  list.map((o) => (
+                    <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                      <td className="px-6 py-3 font-medium text-slate-900 dark:text-white" title={o.id}>
+                        {o.id.length > 12 ? `${o.id.slice(0, 8).toUpperCase()}...` : o.id}
+                      </td>
+                      <td className="px-6 py-3 text-foreground">{o.customer}</td>
+                      <td className="px-6 py-3 text-foreground">{o.items}</td>
+                      <td className="px-6 py-3 text-foreground">{o.payment}</td>
+                      <td className="px-6 py-3 text-foreground">Rs. {o.amount.toFixed(2)}</td>
+                      <td className="px-6 py-3">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusColor(o.status)}`}>{o.status}</span>
+                      </td>
+                      <td className="px-6 py-3 text-foreground">{o.date}</td>
+                      <td className="px-6 py-3 text-center">
+                        <div className="flex items-center justify-center gap-2 text-foreground">
+                          <button 
+                            onClick={() => setSelectedOrder(o)}
+                            className="rounded-md p-1.5 hover:bg-accent hover:text-foreground cursor-pointer"
+                            title="View Details"
+                          >
+                            <Eye size={20} />
+                          </button>
+                          <button 
+                            onClick={() => handlePrint(o)}
+                            className="rounded-md p-1.5 hover:bg-accent hover:text-foreground cursor-pointer"
+                            title="Print Invoice"
+                          >
+                            <Printer size={20} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </Card>
 
@@ -386,8 +470,8 @@ export default function Orders() {
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  Order {selectedOrder.id}
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white" title={selectedOrder.id}>
+                  Order {selectedOrder.id.length > 12 ? selectedOrder.id.slice(0, 8).toUpperCase() : selectedOrder.id}
                 </h2>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor(selectedOrder.status)}`}>
                   {selectedOrder.status}
@@ -409,18 +493,23 @@ export default function Orders() {
                   <div>
                     <h4 className="text-[11px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">Customer</h4>
                     <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200 mt-1">{selectedOrder.customer}</p>
-                    <p className="text-sm text-slate-500 mt-0.5">{selectedOrder.customer.toLowerCase().replace(' ', '.')}@mail.com</p>
+                    <p className="text-sm text-slate-500 mt-0.5">{selectedOrder.customerEmail || "customer@mail.com"}</p>
                   </div>
                   <div>
                     <h4 className="text-[11px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">Delivery Address</h4>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                      15 Keppetipola Rd, Badulla, Sri Lanka
+                      {selectedOrder.rawOrder?.shippingAddress
+                        ? `${selectedOrder.rawOrder.shippingAddress.street}, ${selectedOrder.rawOrder.shippingAddress.city}${selectedOrder.rawOrder.shippingAddress.postalCode ? `, ${selectedOrder.rawOrder.shippingAddress.postalCode}` : ""}`
+                        : "15 Keppetipola Rd, Badulla, Sri Lanka"}
                     </p>
+                    {selectedOrder.rawOrder?.shippingAddress?.phone && (
+                      <p className="text-xs text-slate-500 mt-1">Phone: {selectedOrder.rawOrder.shippingAddress.phone}</p>
+                    )}
                   </div>
                   <div>
                     <h4 className="text-[11px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">Payment</h4>
                     <p className="text-sm text-slate-700 dark:text-slate-300 mt-1 font-medium">
-                      {selectedOrder.payment} · Paid
+                      {selectedOrder.payment} · {selectedOrder.rawOrder?.isPaid ? "Paid" : "Pending"}
                     </p>
                   </div>
                 </div>
@@ -430,14 +519,15 @@ export default function Orders() {
                   <h4 className="text-[11px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase mb-4">Timeline</h4>
                   <div className="flex flex-col gap-6">
                     {[
-                      { label: "Placed", key: "Pending" },
+                      { label: "Placed", key: "Placed" },
                       { label: "Processing", key: "Processing" },
                       { label: "Shipped", key: "Shipped" },
                       { label: "Delivered", key: "Delivered" }
                     ].map((step, idx) => {
                       const getStepStatus = (orderStatus, stepIndex) => {
-                        const statusOrder = ["Pending", "Processing", "Shipped", "Delivered"];
-                        const currentIdx = statusOrder.indexOf(orderStatus);
+                        const statusOrder = ["Placed", "Processing", "Shipped", "Delivered"];
+                        const normalizedStatus = orderStatus === "Pending" ? "Placed" : orderStatus;
+                        const currentIdx = statusOrder.indexOf(normalizedStatus);
                         if (orderStatus === "Cancelled") {
                           return stepIndex === 0 ? "completed" : "inactive";
                         }
@@ -533,4 +623,3 @@ export default function Orders() {
     </div>
   );
 }
-

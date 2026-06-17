@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Alert } from "react-native";
+import { useAuth, API_BASE_URL } from "./AuthContext";
 
 export type AddressLabel = "Home" | "Office" | "Parent's House" | "Gym" | "Other";
 
@@ -15,81 +17,205 @@ export type AddressEntry = {
 
 type AddressContextValue = {
   addresses: AddressEntry[];
-  addAddress: (address: Omit<AddressEntry, "id">) => void;
-  updateAddress: (id: string, address: Omit<AddressEntry, "id">) => void;
-  removeAddress: (id: string) => void;
+  addAddress: (address: Omit<AddressEntry, "id">) => Promise<void>;
+  updateAddress: (id: string, address: Omit<AddressEntry, "id">) => Promise<void>;
+  removeAddress: (id: string) => Promise<void>;
+  syncAddresses: () => Promise<void>;
 };
 
 const AddressContext = createContext<AddressContextValue | null>(null);
 
-const initialAddresses: AddressEntry[] = [
-  {
-    id: "home",
-    label: "Home",
-    fullName: "Alexander Bennett",
-    phone: "+1 (555) 012-3456",
-    street: "42 Green Valley Road, Sector 5",
-    city: "Central District, Smart City, 56001",
-    postalCode: "",
-    isPrimary: true,
-  },
-  {
-    id: "office",
-    label: "Office",
-    fullName: "Alexander Bennett",
-    phone: "+1 (555) 987-6543",
-    street: "Tech Hub Tower, 12th Floor, Suite 404",
-    city: "Innovation Park, Smart City, 56009",
-    postalCode: "",
-    isPrimary: false,
-  },
-  {
-    id: "parents",
-    label: "Parent's House",
-    fullName: "Alexander Bennett",
-    phone: "+1 (555) 246-8101",
-    street: "88 Riverside Apartments, Block B",
-    city: "South Bank Area, Smart City, 56012",
-    postalCode: "",
-    isPrimary: false,
-  },
-];
-
 export function AddressProvider({ children }: { children: React.ReactNode }) {
-  const [addresses, setAddresses] = useState(initialAddresses);
+  const [addresses, setAddresses] = useState<AddressEntry[]>([]);
+  const { user } = useAuth();
 
-  const addAddress = (address: Omit<AddressEntry, "id">) => {
-    setAddresses((current) => {
-      const nextId = `address-${Date.now()}`;
+  // ─── Map a raw DB address row → AddressEntry ─────────────────────────────
+  const mapDbAddress = (dbAddress: any): AddressEntry => ({
+    id: dbAddress.id,
+    label: dbAddress.label as AddressLabel,
+    fullName: dbAddress.fullName,
+    phone: dbAddress.phone || "",
+    street: dbAddress.address,      // DB uses "address", we use "street"
+    city: dbAddress.city,
+    postalCode: dbAddress.zip,      // DB uses "zip", we use "postalCode"
+    isPrimary: dbAddress.isDefault, // DB uses "isDefault", we use "isPrimary"
+  });
 
-      if (address.isPrimary) {
-        return [
-          { ...address, id: nextId },
-          ...current.map((entry) => ({ ...entry, isPrimary: false })),
-        ];
+  // ─── Fetch all addresses from DB ──────────────────────────────────────────
+  const syncAddresses = useCallback(async () => {
+    if (!user || !user.token) {
+      setAddresses([]);
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/address/list`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+
+      if (!response.ok) {
+        console.error("syncAddresses failed:", response.status);
+        return;
       }
 
-      return [...current, { ...address, id: nextId }];
-    });
-  };
+      const data = await response.json();
+      if (data.success && Array.isArray(data.addresses)) {
+        setAddresses(data.addresses.map(mapDbAddress));
+      }
+    } catch (error) {
+      console.error("Error syncing addresses:", error);
+    }
+  }, [user]);
 
-  const updateAddress = (id: string, address: Omit<AddressEntry, "id">) => {
+  // Auto-sync when user logs in / out
+  useEffect(() => {
+    if (user && user.token) {
+      syncAddresses();
+    } else {
+      setAddresses([]);
+    }
+  }, [user]);
+
+  // ─── Add a new address ────────────────────────────────────────────────────
+  // NOTE: no syncAddresses() call here — myAddress.tsx calls it via
+  // useFocusEffect every time the screen gains focus, so the DB re-fetch
+  // happens automatically after navigation.
+  const addAddress = useCallback(async (address: Omit<AddressEntry, "id">) => {
+    if (!user || !user.token) {
+      Alert.alert("Not logged in", "Please log in to save addresses.");
+      return;
+    }
+
+    // Optimistic update with temp id
+    const tempId = `temp-${Date.now()}`;
+    const newEntry: AddressEntry = { ...address, id: tempId };
+
     setAddresses((current) => {
       if (address.isPrimary) {
-        return current.map((entry) =>
-          entry.id === id
-            ? { ...address, id }
-            : { ...entry, isPrimary: false },
+        return [newEntry, ...current.map((e) => ({ ...e, isPrimary: false }))];
+      }
+      return [...current, newEntry];
+    });
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/address/add`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          fullName: address.fullName,
+          label: address.label,
+          phone: address.phone,
+          street: address.street,
+          city: address.city,
+          postalCode: address.postalCode,
+          isPrimary: address.isPrimary,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        // Roll back optimistic update
+        setAddresses((current) => current.filter((e) => e.id !== tempId));
+        Alert.alert("Save Failed", data?.message || "Failed to save address. Please try again.");
+        return;
+      }
+
+      // Swap temp id for real DB id
+      if (data.address?.id) {
+        setAddresses((current) =>
+          current.map((e) => (e.id === tempId ? { ...e, id: data.address.id } : e))
         );
       }
+    } catch (error: any) {
+      setAddresses((current) => current.filter((e) => e.id !== tempId));
+      console.error("Error adding address:", error);
+      Alert.alert("Network Error", "Could not reach server. Check your connection.");
+    }
+  }, [user]);
 
-      return current.map((entry) => (entry.id === id ? { ...address, id } : entry));
+  // ─── Update an existing address ───────────────────────────────────────────
+  const updateAddress = useCallback(async (id: string, address: Omit<AddressEntry, "id">) => {
+    if (!user || !user.token) {
+      Alert.alert("Not logged in", "Please log in to update addresses.");
+      return;
+    }
+
+    // Snapshot for rollback
+    const snapshot = addresses;
+
+    // Optimistic update
+    setAddresses((current) => {
+      if (address.isPrimary) {
+        return current.map((e) =>
+          e.id === id ? { ...address, id } : { ...e, isPrimary: false }
+        );
+      }
+      return current.map((e) => (e.id === id ? { ...address, id } : e));
     });
-  };
 
-  const removeAddress = (id: string) => {
-    setAddresses((current) => current.filter((entry) => entry.id !== id));
-  };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/address/update/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          fullName: address.fullName,
+          label: address.label,
+          phone: address.phone,
+          street: address.street,
+          city: address.city,
+          postalCode: address.postalCode,
+          isPrimary: address.isPrimary,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setAddresses(snapshot); // Roll back
+        Alert.alert("Update Failed", data?.message || "Failed to update address. Please try again.");
+      }
+    } catch (error: any) {
+      setAddresses(snapshot); // Roll back
+      console.error("Error updating address:", error);
+      Alert.alert("Network Error", "Could not reach server. Check your connection.");
+    }
+  }, [user, addresses]);
+
+  // ─── Delete an address ────────────────────────────────────────────────────
+  const removeAddress = useCallback(async (id: string) => {
+    if (!user || !user.token) {
+      Alert.alert("Not logged in", "Please log in to delete addresses.");
+      return;
+    }
+
+    // Snapshot for rollback
+    const snapshot = addresses;
+    setAddresses((current) => current.filter((e) => e.id !== id));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/address/delete/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setAddresses(snapshot); // Roll back
+        Alert.alert("Delete Failed", data?.message || "Failed to delete address. Please try again.");
+      }
+    } catch (error: any) {
+      setAddresses(snapshot); // Roll back
+      console.error("Error deleting address:", error);
+      Alert.alert("Network Error", "Could not reach server. Check your connection.");
+    }
+  }, [user, addresses]);
 
   const value = useMemo(
     () => ({
@@ -97,8 +223,9 @@ export function AddressProvider({ children }: { children: React.ReactNode }) {
       addAddress,
       updateAddress,
       removeAddress,
+      syncAddresses,
     }),
-    [addresses],
+    [addresses, addAddress, updateAddress, removeAddress, syncAddresses],
   );
 
   return <AddressContext.Provider value={value}>{children}</AddressContext.Provider>;

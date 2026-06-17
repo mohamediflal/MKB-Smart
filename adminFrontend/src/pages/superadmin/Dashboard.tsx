@@ -65,28 +65,113 @@ function WelcomeToast({ name }) {
 function SuperAdminDashboard({ onSignOut }) {
   const [user, setUser] = useState(null);
   const [range, setRange] = useState("weekly");
+  const [dbUsers, setDbUsers] = useState([]);
+  const [dbAdmins, setDbAdmins] = useState([]);
+  const [dbOrders, setDbOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+  const fetchUsers = async () => {
+    try {
+      const session = getSession();
+      const token = session?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`${API_BASE}/api/auth/list-users`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDbUsers(data);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching users on superadmin dashboard:", err);
+    }
+  };
+
+  const fetchAdmins = async () => {
+    try {
+      const session = getSession();
+      const token = session?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`${API_BASE}/api/auth/admin/list`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDbAdmins(data);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching admins on superadmin dashboard:", err);
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const session = getSession();
+      const token = session?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`${API_BASE}/api/orders/all-orders`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.orders)) {
+          setDbOrders(data.orders);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching orders on superadmin dashboard:", err);
+    }
+  };
 
   useEffect(() => {
     setUser(getSession());
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchUsers(), fetchAdmins(), fetchOrders()]);
+      setLoading(false);
+    };
+    loadData();
   }, []);
 
   const data = range === "weekly" ? weeklySales : monthlySales;
-  const recent = orders.slice(0, 8);
 
-  const totalRevenue = orders.reduce((sum, o) => sum + o.amount, 0) * 150 + 2385000;
-  const monthlyRevenue = orders.slice(0, 15).reduce((sum, o) => sum + o.amount, 0) * 120 + 1986000;
-  const totalUsersCount = users.length * 2 + 120;
-  const activeUsersCount = users.filter(u => u.status === "Active").length * 2 + 80;
-  const totalAdminsCount = admins.length;
-  const totalOrdersCount = orders.length * 3 + 200;
+  // Real recent orders mapping
+  const recent = dbOrders.slice(0, 8).map((order) => {
+    return {
+      id: order.id,
+      customer: order.shippingAddress?.fullName || 'Guest Customer',
+      payment: order.paymentMethod === 'cod' ? 'Cash' : 'Card',
+      amount: order.total,
+      status: order.status,
+      date: new Date(order.createdAt).toISOString().slice(0, 10),
+    };
+  });
+
+  const totalRevenue = dbOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+  // monthly revenue in the last 30 days
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+  const monthlyRevenue = dbOrders
+    .filter(o => new Date(o.createdAt) >= thirtyDaysAgo)
+    .reduce((sum, o) => sum + (o.total || 0), 0);
 
   const dynamicKPIS = [
-    { label: "TOTAL REVENUE", value: `Rs. ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, delta: "+12.4% MoM", icon: RsIcon, color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-500/15" },
-    { label: "MONTHLY REVENUE", value: `Rs. ${monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, delta: "+6.1%", icon: TrendingUp, color: "text-sky-600 bg-sky-100 dark:bg-sky-500/15" },
-    { label: "TOTAL USERS", value: totalUsersCount.toLocaleString(), delta: "+38 today", icon: Users, color: "text-violet-600 bg-violet-100 dark:bg-violet-500/15" },
-    { label: "ACTIVE USERS", value: activeUsersCount.toLocaleString(), delta: "", icon: UserCheck, color: "text-teal-600 bg-teal-100 dark:bg-teal-500/15" },
-    { label: "TOTAL ADMINS", value: totalAdminsCount.toLocaleString(), delta: "", icon: ShieldCheck, color: "text-amber-600 bg-amber-100 dark:bg-amber-500/15" },
-    { label: "TOTAL ORDERS", value: totalOrdersCount.toLocaleString(), delta: "+24 today", icon: ShoppingCart, color: "text-rose-600 bg-rose-100 dark:bg-rose-500/15" },
+    { label: "TOTAL REVENUE", value: loading ? "..." : `Rs. ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, delta: "+12.4% MoM", icon: RsIcon, color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-500/15" },
+    { label: "MONTHLY REVENUE", value: loading ? "..." : `Rs. ${monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, delta: "+6.1%", icon: TrendingUp, color: "text-sky-600 bg-sky-100 dark:bg-sky-500/15" },
+    { label: "TOTAL USERS", value: loading ? "..." : dbUsers.length.toLocaleString(), delta: "+38 today", icon: Users, color: "text-violet-600 bg-violet-100 dark:bg-violet-500/15" },
+    { label: "ACTIVE USERS", value: loading ? "..." : dbUsers.filter(u => u.status === "Active").length.toLocaleString(), delta: "", icon: UserCheck, color: "text-teal-600 bg-teal-100 dark:bg-teal-500/15" },
+    { label: "TOTAL ADMINS", value: loading ? "..." : dbAdmins.length.toLocaleString(), delta: "", icon: ShieldCheck, color: "text-amber-600 bg-amber-100 dark:bg-amber-500/15" },
+    { label: "TOTAL ORDERS", value: loading ? "..." : dbOrders.length.toLocaleString(), delta: "+24 today", icon: ShoppingCart, color: "text-rose-600 bg-rose-100 dark:bg-rose-500/15" },
   ];
 
   return (
@@ -199,7 +284,9 @@ function SuperAdminDashboard({ onSignOut }) {
                 <tbody>
                   {recent.map((o) => (
                     <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors">
-                      <td className="px-6 py-4 font-bold text-[#111827]">{o.id}</td>
+                      <td className="px-6 py-4 font-bold text-[#111827]" title={o.id}>
+                        {o.id.length > 12 ? `${o.id.slice(0, 8).toUpperCase()}...` : o.id}
+                      </td>
                       <td className="px-6 py-4 text-[#111827] font-medium">{o.customer}</td>
                       <td className="px-6 py-4 text-[#111827] font-medium">{o.payment}</td>
                       <td className="px-6 py-4 text-[#111827] font-semibold">Rs. {o.amount.toFixed(2)}</td>

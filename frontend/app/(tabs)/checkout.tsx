@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import {
+	ActivityIndicator,
 	Alert,
+	Modal,
 	Pressable,
 	ScrollView,
 	Text,
@@ -12,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { useCart } from "@/context/CartContext";
 import { useAddresses } from "@/context/AddressContext";
+import { useAuth, API_BASE_URL } from "@/context/AuthContext";
 
 const DELIVERY_FEE = 150;
 const DISCOUNT = 0;
@@ -98,8 +101,13 @@ export default function CheckoutScreen() {
 	const params = useLocalSearchParams<{ returnTo?: string }>();
 	const { cartItems, clearCart } = useCart();
 	const { addresses, updateAddress } = useAddresses();
+	const { user } = useAuth();
+
 	const [paymentMethod, setPaymentMethod] = useState<"card" | "cod">("card");
 	const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+	const [isPlacing, setIsPlacing] = useState(false);
+	const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
+	const [createdOrder, setCreatedOrder] = useState<any>(null);
 
 	const subtotal = useMemo(
 		() => cartItems.reduce((sum, item) => sum + parsePrice(item.price) * item.quantity, 0),
@@ -132,14 +140,59 @@ export default function CheckoutScreen() {
 		router.replace("/");
 	};
 
-	const handlePlaceOrder = () => {
+	const handlePlaceOrder = async () => {
 		if (cartItems.length === 0) {
 			Alert.alert("Your cart is empty", "Add items before placing an order.");
 			return;
 		}
 
-		clearCart();
-		router.replace("/");
+		if (!primaryAddress) {
+			Alert.alert("Shipping Address Required", "Please select or add a delivery address.");
+			return;
+		}
+
+		if (!user || !user.token) {
+			Alert.alert("Not logged in", "Please log in to place an order.");
+			return;
+		}
+
+		setIsPlacing(true);
+
+		const endpoint = paymentMethod === "cod"
+			? `${API_BASE_URL}/api/orders/place`
+			: `${API_BASE_URL}/api/orders/place-card`;
+
+		try {
+			const response = await fetch(endpoint, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${user.token}`,
+				},
+				body: JSON.stringify({
+					items: cartItems,
+					shippingAddress: primaryAddress,
+					subtotal,
+					deliveryFee: DELIVERY_FEE,
+					total,
+				}),
+			});
+
+			const data = await response.json();
+
+			if (!response.ok || !data.success) {
+				Alert.alert("Order Failed", data.message || "Failed to place your order. Please try again.");
+				return;
+			}
+
+			setCreatedOrder(data.order);
+			setIsSuccessModalVisible(true);
+		} catch (error: any) {
+			console.error("Place Order Error:", error);
+			Alert.alert("Network Error", "Unable to connect to the server. Please check your internet connection.");
+		} finally {
+			setIsPlacing(false);
+		}
 	};
 
 	return (
@@ -333,23 +386,107 @@ export default function CheckoutScreen() {
 			</ScrollView>
 
 			<View className="absolute bottom-24 left-0 right-0 z-50 border-t border-slate-200/80 bg-white/95 px-4 pb-6 pt-4 backdrop-blur-md shadow-[0_-12px_30px_rgba(15,23,42,0.12)]">
-			
-
 				<Pressable
 					onPress={handlePlaceOrder}
-					disabled={cartItems.length === 0}
+					disabled={cartItems.length === 0 || isPlacing}
 					accessibilityRole="button"
 					accessibilityLabel="Place order"
-					 className="h-14 flex-row items-center justify-center rounded-2xl bg-[#15803d] active:bg-[#166534]"
+					className="h-14 flex-row items-center justify-center rounded-2xl bg-[#15803d] active:bg-[#166534]"
 				>
-					<Text className="mr-2 text-base font-bold tracking-[0.8px] text-white">
-						Place Order
-					</Text>
-					<View className="ml-1 h-9 w-9 items-center justify-center rounded-full bg-white/15">
-						<Ionicons name="arrow-forward" size={18} color="#ffffff" />
-					</View>
+					{isPlacing ? (
+						<ActivityIndicator color="white" />
+					) : (
+						<>
+							<Text className="mr-2 text-base font-bold tracking-[0.8px] text-white">
+								Place Order
+							</Text>
+							<View className="ml-1 h-9 w-9 items-center justify-center rounded-full bg-white/15">
+								<Ionicons name="arrow-forward" size={18} color="#ffffff" />
+							</View>
+						</>
+					)}
 				</Pressable>
 			</View>
+
+			{/* Success Popup Modal */}
+			<Modal
+				visible={isSuccessModalVisible}
+				transparent
+				animationType="fade"
+				onRequestClose={() => {}}
+			>
+				<View className="flex-1 items-center justify-center bg-black/60 px-6">
+					<View className="w-full max-w-[360px] overflow-hidden rounded-[32px] bg-white p-6 shadow-2xl items-center animate-in fade-in duration-300">
+						{/* Success Icon */}
+						<View className="h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
+							<Ionicons name="checkmark-circle" size={40} color="#15803d" />
+						</View>
+
+						<Text className="text-xl font-extrabold text-slate-900 text-center">
+							Order Placed!
+						</Text>
+						<Text className="mt-2 text-sm text-slate-500 text-center leading-5 px-2">
+							Your order has been placed successfully and is being prepared.
+						</Text>
+
+						{/* Order Details Brief */}
+						<View className="w-full bg-slate-50 rounded-2xl p-4 mt-4 mb-5 border border-slate-100">
+							<View className="flex-row justify-between mb-2">
+								<Text className="text-xs text-slate-500 font-medium">Order ID</Text>
+								<Text className="text-xs font-bold text-slate-800" numberOfLines={1} style={{ maxWidth: 160 }}>
+									{createdOrder?.id}
+								</Text>
+							</View>
+							<View className="flex-row justify-between mb-2">
+								<Text className="text-xs text-slate-500 font-medium">Payment</Text>
+								<Text className="text-xs font-bold text-slate-800 uppercase">
+									{createdOrder?.paymentMethod === "cod" ? "Cash on Delivery" : "Card Payment"}
+								</Text>
+							</View>
+							<View className="flex-row justify-between mb-2">
+								<Text className="text-xs text-slate-500 font-medium">Total Amount</Text>
+								<Text className="text-xs font-extrabold text-[#15803d]">
+									{formatLkr(createdOrder?.total || total)}
+								</Text>
+							</View>
+							<View className="h-px bg-slate-200 my-1.5" />
+							<Text className="text-[11px] text-slate-500 leading-4">
+								<Text className="font-bold text-slate-700">Deliver to: </Text>
+								{createdOrder?.shippingAddress ? `${createdOrder.shippingAddress.street}, ${createdOrder.shippingAddress.city}` : ""}
+							</Text>
+						</View>
+
+						{/* Action Buttons */}
+						<View className="w-full" style={{ gap: 10 }}>
+							<Pressable
+								onPress={() => {
+									clearCart();
+									setIsSuccessModalVisible(false);
+									router.replace("/");
+								}}
+								className="w-full rounded-xl bg-[#15803d] py-3.5 shadow-sm active:bg-[#166534]"
+							>
+								<Text className="text-center text-sm font-bold text-white uppercase tracking-[1px]">
+									Continue Shopping
+								</Text>
+							</Pressable>
+
+							<Pressable
+								onPress={() => {
+									clearCart();
+									setIsSuccessModalVisible(false);
+									router.replace("/myOrders");
+								}}
+								className="w-full rounded-xl border border-[#15803d] bg-white py-3 active:bg-slate-50"
+							>
+								<Text className="text-center text-sm font-bold text-[#15803d] uppercase tracking-[1px]">
+									View My Orders
+								</Text>
+							</Pressable>
+						</View>
+					</View>
+				</View>
+			</Modal>
 		</SafeAreaView>
 	);
 }

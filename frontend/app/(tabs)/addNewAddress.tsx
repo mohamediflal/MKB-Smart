@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -23,6 +23,7 @@ export default function AddNewAddressScreen() {
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [isPrimary, setIsPrimary] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!editingAddress) {
@@ -43,8 +44,8 @@ export default function AddNewAddressScreen() {
     [fullName, phone, street, city],
   );
 
-  const handleSave = () => {
-    if (!canSave) {
+  const handleSave = useCallback(async () => {
+    if (!canSave || isSaving) {
       return;
     }
 
@@ -58,16 +59,18 @@ export default function AddNewAddressScreen() {
       isPrimary,
     };
 
-    if (isEditing && editingAddress) {
-      updateAddress(editingAddress.id, payload);
-    } else {
-      addAddress(payload);
-    }
-
-    requestAnimationFrame(() => {
+    setIsSaving(true);
+    try {
+      if (isEditing && editingAddress) {
+        await updateAddress(editingAddress.id, payload);
+      } else {
+        await addAddress(payload);
+      }
       router.replace("/myAddress");
-    });
-  };
+    } finally {
+      setIsSaving(false);
+    }
+  }, [canSave, isSaving, selectedLabel, fullName, phone, street, city, postalCode, isPrimary, isEditing, editingAddress, addAddress, updateAddress, router]);
 
   return (
     <SafeAreaView className="flex-1 bg-[#f5f5f5]" edges={["top"]}>
@@ -197,14 +200,18 @@ export default function AddNewAddressScreen() {
       <View className="absolute left-4 right-4 rounded-2xl border border-[#bfcaba] bg-[#f7fbf0] px-4 pb-4 pt-4 shadow-lg" style={{ bottom: 112, elevation: 6, zIndex: 20 }}>
         <Pressable
           onPress={handleSave}
-          disabled={!canSave}
-          className={`rounded-xl py-4 ${canSave ? "bg-[#2e7d32]" : "bg-[#8fb494]"}`}
+          disabled={!canSave || isSaving}
+          className={`rounded-xl py-4 ${canSave && !isSaving ? "bg-[#2e7d32]" : "bg-[#8fb494]"}`}
           accessibilityRole="button"
           accessibilityLabel="Save address"
         >
-          <Text className="text-center text-[16px] font-bold text-white">
-            {isEditing ? "Update Address" : "Save Address"}
-          </Text>
+          {isSaving ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text className="text-center text-[16px] font-bold text-white">
+              {isEditing ? "Update Address" : "Save Address"}
+            </Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>
