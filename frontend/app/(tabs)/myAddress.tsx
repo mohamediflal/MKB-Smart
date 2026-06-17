@@ -2,7 +2,7 @@ import React from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useAddresses } from "@/context/AddressContext";
 
 function AddressCard({
@@ -98,8 +98,14 @@ function AddressCard({
 export default function MyAddressScreen() {
 	const router = useRouter();
 	const params = useLocalSearchParams<{ returnTo?: string }>();
-	const { addresses, removeAddress, updateAddress } = useAddresses();
+	const { addresses, removeAddress, updateAddress, syncAddresses } = useAddresses();
 	const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; title: string } | null>(null);
+
+	useFocusEffect(
+		React.useCallback(() => {
+			syncAddresses();
+		}, [syncAddresses])
+	);
 
 	const handleBackPress = () => {
 		if (params.returnTo === "/checkout") {

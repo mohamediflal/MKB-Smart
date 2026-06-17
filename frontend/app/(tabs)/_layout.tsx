@@ -201,6 +201,11 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="myOrders"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
         name="addNewAddress"
         options={{ href: null }}
       />

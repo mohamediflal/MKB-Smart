@@ -198,7 +198,11 @@ export default function Profile() {
           </Text>
 
           <View className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <MenuRow icon="bag-handle-outline" label="My Orders" />
+            <MenuRow
+              icon="bag-handle-outline"
+              label="My Orders"
+              onPress={() => router.push("/myOrders")}
+            />
             <MenuRow
               icon="location-outline"
               label="My Addresses"

@@ -10,7 +10,7 @@ orderRouter.post('/place', userAuth, placeOrder);
 orderRouter.post('/place-card', userAuth, placeCardOrder);
 orderRouter.get('/user-orders', userAuth, getUserOrders);
 
-orderRouter.get('/all-orders', adminAuth, superAdminAuth, getAllOrders);
-orderRouter.put('/update-status', adminAuth, superAdminAuth, updateOrderStatus);
+orderRouter.get('/all-orders', adminAuth, getAllOrders);
+orderRouter.put('/update-status', adminAuth, updateOrderStatus);
 
 export default orderRouter;

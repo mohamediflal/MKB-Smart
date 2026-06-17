@@ -336,6 +336,7 @@ export const activityLogs = Array.from({ length: 20 }).map((_, i) => {
 export function statusColor(s) {
 	return (
 		{
+			Placed: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
 			Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
 			Processing: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
 			Shipped: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',
