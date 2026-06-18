@@ -49,7 +49,7 @@ const getApiBaseUrl = () => {
         return "http://10.0.2.2:3000";
       }
       if (host === "localhost" && Platform.OS === "ios") {
-        return "http://192.168.8.110:3000";
+        return "http://192.168.100.253:3000";
       }
       return `http://${host}:3000`;
     }
@@ -60,7 +60,7 @@ const getApiBaseUrl = () => {
   }
 
   // Fallback for iOS physical devices or unknown expo host.
-  return "http://192.168.8.110:3000";
+  return "http://192.168.100.253:3000";
 };
 
 export const API_BASE_URL = getApiBaseUrl();
