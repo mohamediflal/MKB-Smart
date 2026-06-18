@@ -9,6 +9,7 @@ type UserProfile = {
   email: string;
   phone?: string;
   token?: string;
+  profileImage?: string;
 };
 
 type AuthContextValue = {
@@ -18,6 +19,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (value: { name: string; email: string; phone?: string; password: string }) => Promise<void>;
   logout: () => void;
+  setUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 };
 
 const getApiBaseUrl = () => {
@@ -143,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: data.user.email,
       phone: data.user.phone,
       token: data.token,
+      profileImage: data.user.avatar || undefined,
     });
   };
 
@@ -189,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      setUser,
     }),
     [user, isAuthReady]
   );

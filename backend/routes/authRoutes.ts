@@ -10,6 +10,7 @@ const authRouter = express.Router();
 authRouter.post('/register', register);
 authRouter.post('/login', login);
 authRouter.get('/list-users', superAdminAuth, listUsers);
+authRouter.post('/update-user', userAuth, updateUser);
 authRouter.post('/update-user', userAuth, upload.single('avatar'), updateUser);
 authRouter.delete('/delete-user', userAuth, deleteUser);
 authRouter.delete('/admin/delete-user', superAdminAuth, deleteUser);

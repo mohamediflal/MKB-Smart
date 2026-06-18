@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import cloudinary from '../configs/cloudinary';
 
 // Generate JWT token (accepts either id string or object payload)
 const generateToken = (payload: string | object) => {
@@ -138,7 +139,72 @@ export const listUsers = async (req: Request & { userId?: string }, res: Respons
 
 // update user details by user themselves
 export const updateUser = async (req: Request & { userId?: string }, res: Response) => {
+    try {
+        const userId = req.userId;
 
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized. Please login again.' });
+        }
+
+        const existing = await prisma.user.findUnique({ where: { id: userId } });
+
+        if (!existing) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const { name, imageBase64, imageMimeType } = req.body;
+        console.log('[DEBUG Backend] updateUser called with keys:', Object.keys(req.body));
+        console.log('[DEBUG Backend] name:', name);
+        console.log('[DEBUG Backend] imageBase64 length:', imageBase64 ? imageBase64.length : 'null/undefined');
+        console.log('[DEBUG Backend] imageMimeType:', imageMimeType);
+
+        const updateData: { name?: string; avatar?: string } = {};
+
+        // Update name if provided
+        if (name && name.trim()) {
+            updateData.name = name.trim();
+        }
+
+        // Upload avatar to Cloudinary if base64 image was sent
+        if (imageBase64) {
+            const mime = imageMimeType || 'image/jpeg';
+            const dataUri = `data:${mime};base64,${imageBase64}`;
+            console.log('[DEBUG Backend] Uploading to Cloudinary...');
+
+            const uploadResult = await cloudinary.uploader.upload(dataUri, {
+                folder: 'mkb-smart/avatars',
+                transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
+            });
+
+            console.log('[DEBUG Backend] Cloudinary upload success url:', uploadResult.secure_url);
+            updateData.avatar = uploadResult.secure_url;
+        } else {
+            console.log('[DEBUG Backend] No imageBase64 provided, skipping Cloudinary upload');
+        }
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ message: 'No valid fields provided to update.' });
+        }
+
+        console.log('[DEBUG Backend] Updating database with data:', updateData);
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+        });
+
+        const { password: _password, ...safeUser } = updated;
+        console.log('[DEBUG Backend] Database update success, updated user:', safeUser);
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully.',
+            user: safeUser,
+        });
+
+    } catch (error: any) {
+        console.error('Update User Error:', error);
+        res.status(500).json({ message: error.message || 'Internal server error' });
+    }
 }
 
 // delete user account by super admin or by user themselves

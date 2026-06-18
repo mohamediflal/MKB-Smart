@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
@@ -165,9 +165,17 @@ export default function Profile() {
         <View className="items-center">
           <View className="relative">
             <View className="h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
-              <Text className="text-3xl font-extrabold text-[#15803d]">
-                {user?.name?.[0] ?? "U"}
-              </Text>
+              {user?.profileImage ? (
+                <Image
+                  source={{ uri: user.profileImage }}
+                  className="h-24 w-24 rounded-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-3xl font-extrabold text-[#15803d]">
+                  {user?.name?.[0] ?? "U"}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -198,11 +206,7 @@ export default function Profile() {
           </Text>
 
           <View className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <MenuRow
-              icon="bag-handle-outline"
-              label="My Orders"
-              onPress={() => router.push("/myOrders")}
-            />
+            <MenuRow icon="bag-handle-outline" label="My Orders" />
             <MenuRow
               icon="location-outline"
               label="My Addresses"
