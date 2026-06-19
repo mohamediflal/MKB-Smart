@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
@@ -132,7 +132,7 @@ export default function Profile() {
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
       <View className="flex-row items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
         <View className="flex-row items-center gap-3">
-          
+
           <Text className="text-[24px] ml-2 font-extrabold tracking-tight text-[#15803d]">
             MKB-Smart
           </Text>
@@ -165,9 +165,17 @@ export default function Profile() {
         <View className="items-center">
           <View className="relative">
             <View className="h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
-              <Text className="text-3xl font-extrabold text-[#15803d]">
-                {user?.name?.[0] ?? "U"}
-              </Text>
+              {user?.profileImage ? (
+                <Image
+                  source={{ uri: user.profileImage }}
+                  className="h-24 w-24 rounded-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-3xl font-extrabold text-[#15803d]">
+                  {user?.name?.[0] ?? "U"}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -198,14 +206,19 @@ export default function Profile() {
           </Text>
 
           <View className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <MenuRow icon="bag-handle-outline" label="My Orders" />
+            <MenuRow
+              icon="bag-handle-outline"
+              label="My Orders"
+              showDivider
+              onPress={() => router.push("/myOrders")} />
+
             <MenuRow
               icon="location-outline"
               label="My Addresses"
               showDivider
               onPress={() => router.push("/myAddress")}
             />
-            
+
           </View>
 
           <Text className="px-1 pt-2 text-[12px] font-bold uppercase tracking-wider text-slate-500">
@@ -250,7 +263,7 @@ export default function Profile() {
               <Text className="text-base font-bold text-red-600">Logout</Text>
             </Pressable>
 
-            
+
           </View>
 
           <View className="pt-2 mt-3">
@@ -263,10 +276,10 @@ export default function Profile() {
               <Text className="text-base font-bold text-red-600">Delete Account</Text>
             </Pressable>
 
-            
+
           </View>
 
-          
+
         </View>
       </ScrollView>
     </SafeAreaView>

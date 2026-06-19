@@ -12,6 +12,7 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 
@@ -27,7 +28,7 @@ export default function Register() {
 	const [loading, setLoading] = useState(false)
 	const router = useRouter()
 	const params = useLocalSearchParams<{ returnTo?: string }>()
-	const { register } = useAuth()
+	const { sendOtp } = useAuth()
 
 	const onSubmit = async () => {
 		if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
@@ -47,9 +48,17 @@ export default function Register() {
 
 		setLoading(true)
 		try {
-			await register({ name: name.trim(), email: email.trim(), phone: phone.trim(), password })
-			const destination = params.returnTo ?? '/profile'
-			router.replace(destination)
+			await sendOtp(email.trim())
+			router.push({
+				pathname: '/otpPage',
+				params: {
+					name: name.trim(),
+					email: email.trim(),
+					phone: phone.trim(),
+					password,
+					returnTo: params.returnTo,
+				}
+			})
 		} catch (error) {
 			Alert.alert('Registration failed', error instanceof Error ? error.message : 'Please try again.')
 		} finally {
@@ -62,7 +71,37 @@ export default function Register() {
 			behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 			style={{ flex: 1, backgroundColor: '#f3fcf1' }}
 		>
-			<ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
+			<TouchableOpacity
+				onPress={() => {
+					if (router.canGoBack()) {
+						router.back()
+					} else {
+						router.replace('/login')
+					}
+				}}
+				style={{
+					position: 'absolute',
+					top: Platform.OS === 'ios' ? 50 : 20,
+					left: 16,
+					width: 40,
+					height: 40,
+					borderRadius: 20,
+					backgroundColor: '#ffffff',
+					alignItems: 'center',
+					justifyContent: 'center',
+					shadowColor: '#000',
+					shadowOffset: { width: 0, height: 2 },
+					shadowOpacity: 0.1,
+					shadowRadius: 4,
+					elevation: 3,
+					zIndex: 99,
+				}}
+				accessibilityRole="button"
+				accessibilityLabel="Go back"
+			>
+				<Ionicons name="arrow-back" size={24} color="#006d37" />
+			</TouchableOpacity>
+			<ScrollView contentContainerStyle={{ padding: 20, paddingTop: Platform.OS === 'ios' ? 100 : 70, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
 				<View style={{ alignItems: 'center', marginBottom: 16 }}>
 					<Image
 						source={{
@@ -98,7 +137,7 @@ export default function Register() {
 						<TextInput placeholder="name@example.com" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} style={{ flex: 1 }} />
 					</View>
 
-			
+
 
 					{/* Password */}
 					<Text style={{ color: '#556', marginBottom: 6, fontSize: 12 }}>Password</Text>
@@ -143,19 +182,19 @@ export default function Register() {
 						)}
 					</TouchableOpacity>
 
-					
+
 				</View>
 
 				<View style={{ alignItems: 'center', marginTop: 20, marginBottom: 40 }}>
 					<Text style={{ color: '#3d4a3e' }}>
 						Already have an account?{' '}
 						<Pressable
-				onPress={() =>
-					router.replace({ pathname: '/login', params: { returnTo: params.returnTo ?? '/' } })
-				}
-			>
-				<Text style={{ color: '#006d37', fontWeight: '700' }}>Login</Text>
-			</Pressable>
+							onPress={() =>
+								router.replace({ pathname: '/login', params: { returnTo: params.returnTo ?? '/' } })
+							}
+						>
+							<Text style={{ color: '#006d37', fontWeight: '700' }}>Login</Text>
+						</Pressable>
 					</Text>
 				</View>
 			</ScrollView>

@@ -61,25 +61,109 @@ function WelcomeToast({ name }) {
 function AdminDashboard({ onSignOut }) {
   const [user, setUser] = useState(null);
   const [range, setRange] = useState("weekly");
+  const [dbProducts, setDbProducts] = useState([]);
+  const [dbOrders, setDbOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/products/list`);
+      if (res.ok) {
+        const data = await res.json();
+        setDbProducts(data);
+      }
+    } catch (err) {
+      console.error("Error fetching products on dashboard:", err);
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const session = getSession();
+      const token = session?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`${API_BASE}/api/orders/all-orders`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.orders)) {
+          setDbOrders(data.orders);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching orders on dashboard:", err);
+    }
+  };
 
   useEffect(() => {
     setUser(getSession());
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchProducts(), fetchOrders()]);
+      setLoading(false);
+    };
+    loadData();
   }, []);
 
   const data = range === "weekly" ? weeklySales : monthlySales;
-  const recent = orders.slice(0, 8);
 
-    const dynamicKPIS = [
-      { label: "TOTAL PRODUCTS", value: (20 + products.length).toLocaleString(), icon: Package, color: "text-emerald-700 bg-emerald-50/80" },
-      { label: "ACTIVE PRODUCTS", value: (15 + products.filter(p => p.active).length).toLocaleString(), icon: CheckCircle2, color: "text-emerald-700 bg-emerald-50/80" },
-      { label: "LOW STOCK", value: (3 + products.filter(p => p.stock > 0 && p.stock < 1000).length).toLocaleString(), icon: AlertTriangle, color: "text-amber-600 bg-amber-50" },
-      { label: "TOTAL ORDERS", value: (20 + orders.length).toLocaleString(), icon: ShoppingCart, color: "text-sky-600 bg-sky-50" },
-      { label: "PENDING", value: (2 + orders.filter(o => o.status === "Pending" || o.status === "Processing").length).toLocaleString(), icon: Clock, color: "text-rose-600 bg-rose-50" },
-      { label: "COMPLETED", value: (15 + orders.filter(o => o.status === "Delivered" || o.status === "Shipped").length).toLocaleString(), icon: PackageCheck, color: "text-purple-600 bg-purple-50" },
-    ];
+  // Real recent orders mapping
+  const recent = dbOrders.slice(0, 8).map((order) => {
+    return {
+      id: order.id,
+      customer: order.shippingAddress?.fullName || 'Guest Customer',
+      payment: order.paymentMethod === 'cod' ? 'Cash' : 'Card',
+      amount: order.total,
+      status: order.status,
+      date: new Date(order.createdAt).toISOString().slice(0, 10),
+    };
+  });
 
-    return (
-      <>
+  const dynamicKPIS = [
+    { 
+      label: "TOTAL PRODUCTS", 
+      value: loading ? "..." : dbProducts.length.toLocaleString(), 
+      icon: Package, 
+      color: "text-emerald-700 bg-emerald-50/80" 
+    },
+    { 
+      label: "LOW STOCK", 
+      value: loading ? "..." : dbProducts.filter(p => p.stock > 0 && p.stock < 15).length.toLocaleString(), 
+      icon: AlertTriangle, 
+      color: "text-amber-600 bg-amber-50" 
+    },
+    { 
+      label: "TOTAL ORDERS", 
+      value: loading ? "..." : dbOrders.length.toLocaleString(), 
+      icon: ShoppingCart, 
+      color: "text-sky-600 bg-sky-50" 
+    },
+    { 
+      label: "PENDING", 
+      value: loading ? "..." : dbOrders.filter(o => o.status === "Pending" || o.status === "Placed" || o.status === "Processing").length.toLocaleString(), 
+      icon: Clock, 
+      color: "text-rose-600 bg-rose-50" 
+    },
+    { 
+      label: "COMPLETED", 
+      value: loading ? "..." : dbOrders.filter(o => o.status === "Delivered" || o.status === "Shipped").length.toLocaleString(), 
+      icon: PackageCheck, 
+      color: "text-purple-600 bg-purple-50" 
+    },
+    { 
+      label: "CANCELED", 
+      value: loading ? "..." : dbOrders.filter(o => o.status === "Cancelled").length.toLocaleString(), 
+      icon: PackageCheck, 
+      color: "text-red-600 bg-red-50" 
+    },
+  ];
+
+  return (
+    <>
         {user && <WelcomeToast name={user.name?.split(" ")[0] || "Alex"} />}
         <div className="flex-1 overflow-auto p-6 md:p-8">
             <PageHeader
@@ -189,7 +273,9 @@ function AdminDashboard({ onSignOut }) {
                 <tbody>
                   {recent.map((o) => (
                     <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors">
-                      <td className="px-6 py-4 font-bold text-[#111827]">{o.id}</td>
+                      <td className="px-6 py-4 font-bold text-[#111827]" title={o.id}>
+                        {o.id.length > 12 ? `${o.id.slice(0, 8).toUpperCase()}...` : o.id}
+                      </td>
                       <td className="px-6 py-4 text-[#111827] font-medium">{o.customer}</td>
                       <td className="px-6 py-4 text-[#111827] font-medium">{o.payment}</td>
                       <td className="px-6 py-4 text-[#111827] font-semibold">Rs. {o.amount.toFixed(2)}</td>

@@ -261,7 +261,7 @@ export async function addAdmin(a) {
     const res = await fetch(`${base}/api/auth/admin/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: a.name, email: a.email, password: a.password }),
+        body: JSON.stringify({ name: a.name, email: a.email, password: a.password, otp: a.otp }),
     })
     if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -336,6 +336,7 @@ export const activityLogs = Array.from({ length: 20 }).map((_, i) => {
 export function statusColor(s) {
 	return (
 		{
+			Placed: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
 			Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
 			Processing: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
 			Shipped: 'bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300',

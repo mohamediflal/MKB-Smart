@@ -17,10 +17,10 @@ function Field({ label, defaultValue, readOnly = false }) {
   return (
     <div>
       <label className="text-sm font-medium">{label}</label>
-      <input 
-        defaultValue={defaultValue} 
+      <input
+        defaultValue={defaultValue}
         readOnly={readOnly}
-        className={`mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none ${readOnly ? "opacity-75 cursor-not-allowed bg-slate-50 dark:bg-slate-900/30" : "focus:ring-2 focus:ring-ring"}`} 
+        className={`mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none ${readOnly ? "opacity-75 cursor-not-allowed bg-slate-50 dark:bg-slate-900/30" : "focus:ring-2 focus:ring-ring"}`}
       />
     </div>
   );
@@ -53,9 +53,9 @@ export default function Profile() {
             <h3 className="font-semibold text-lg text-slate-900 dark:text-white">Store Information</h3>
             <p className="text-xs text-muted-foreground">Basic details about your store and location</p>
             <div className="mt-5 space-y-4">
-              <Field label="Store Name" defaultValue="MKB Supermarket" />
-              <Field label="Support Email" defaultValue="support@mkbsmart.com" />
-              <Field label="Address" defaultValue="38 Race Course Rd, Badulla, 90000, Sri Lanka" />
+              <Field label="Store Name" defaultValue="MKB-Smart" readOnly />
+              {/* <Field label="Support Email" defaultValue="support@mkbsmart.com" readOnly/> */}
+              <Field label="Address" defaultValue=" Badulla, 90000, Sri Lanka" readOnly />
               <Field label="Currency" defaultValue="LKR (Rs.)" readOnly />
             </div>
             <button

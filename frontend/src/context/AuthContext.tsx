@@ -9,6 +9,7 @@ type UserProfile = {
   email: string;
   phone?: string;
   token?: string;
+  profileImage?: string;
 };
 
 type AuthContextValue = {
@@ -16,8 +17,13 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isAuthReady: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (value: { name: string; email: string; phone?: string; password: string }) => Promise<void>;
+  register: (value: { name: string; email: string; phone?: string; password: string; otp: string }) => Promise<void>;
+  sendOtp: (email: string) => Promise<{ success: boolean; message: string; previewUrl?: string }>;
+  forgotPassword: (email: string) => Promise<any>;
+  verifyForgotOtp: (email: string, otp: string) => Promise<any>;
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<any>;
   logout: () => void;
+  setUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 };
 
 const getApiBaseUrl = () => {
@@ -143,12 +149,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: data.user.email,
       phone: data.user.phone,
       token: data.token,
+      profileImage: data.user.avatar || undefined,
     });
   };
 
-  const register = async ({ name, email, phone, password }: { name: string; email: string; phone?: string; password: string }) => {
-    if (!name || !email || !password) {
-      throw new Error("Name, email, and password are required.");
+  const register = async ({ name, email, phone, password, otp }: { name: string; email: string; phone?: string; password: string; otp: string }) => {
+    if (!name || !email || !password || !otp) {
+      throw new Error("Name, email, password, and verification OTP are required.");
     }
 
     const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
@@ -156,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, otp }),
     });
 
     const data = await response.json();
@@ -177,6 +184,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const sendOtp = async (email: string) => {
+    if (!email) {
+      throw new Error("Email is required.");
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to send OTP. Please try again.");
+    }
+
+    return data;
+  };
+
+  const forgotPassword = async (email: string) => {
+    if (!email) {
+      throw new Error("Email is required.");
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Forgot password request failed.");
+    }
+    return data;
+  };
+
+  const verifyForgotOtp = async (email: string, otp: string) => {
+    if (!email || !otp) {
+      throw new Error("Email and OTP are required.");
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, otp }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "OTP verification failed.");
+    }
+    return data;
+  };
+
+  const resetPassword = async (email: string, otp: string, newPassword: string) => {
+    if (!email || !otp || !newPassword) {
+      throw new Error("Email, OTP, and new password are required.");
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, otp, newPassword }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Password reset failed.");
+    }
+    return data;
+  };
+
   const logout = () => {
     setUser(null);
   };
@@ -188,7 +270,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthReady,
       login,
       register,
+      sendOtp,
+      forgotPassword,
+      verifyForgotOtp,
+      resetPassword,
       logout,
+      setUser,
     }),
     [user, isAuthReady]
   );

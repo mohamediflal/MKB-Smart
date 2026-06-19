@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { addAdmin } from '../index'
 
 function Field({ label, type, value, onChange, placeholder, icon }) {
@@ -24,11 +25,13 @@ function Field({ label, type, value, onChange, placeholder, icon }) {
 }
 
 function SignUp({ onModeChange }) {
+	const navigate = useNavigate()
 	const [fullName, setFullName] = useState('')
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
 	const [confirmPassword, setConfirmPassword] = useState('')
 	const [error, setError] = useState(null)
+	const [isLoading, setIsLoading] = useState(false)
 
 	const handleSubmit = async (event) => {
 		event.preventDefault()
@@ -37,12 +40,23 @@ function SignUp({ onModeChange }) {
 			setError('Passwords do not match')
 			return
 		}
+		setIsLoading(true)
 		try {
-			await addAdmin({ name: fullName, email: email, role: 'admin', password })
-			alert('Admin account registered successfully! You can now log in.')
-			onModeChange('login')
+			const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+			const res = await fetch(`${base}/api/auth/send-otp`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: email.trim() }),
+			})
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}))
+				throw new Error(data.message || 'Failed to send verification code')
+			}
+			navigate('/auth/admin/otp', { state: { name: fullName.trim(), email: email.trim(), password } })
 		} catch (err) {
 			setError(err?.message || 'Registration failed')
+		} finally {
+			setIsLoading(false)
 		}
 	}
 
@@ -168,9 +182,20 @@ function SignUp({ onModeChange }) {
 
 					<button
 						type="submit"
-						className="inline-flex h-14 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-base font-semibold text-white shadow-[0_15px_30px_rgba(23,129,61,0.18)] transition duration-200 hover:from-emerald-700 hover:to-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/20"
+						disabled={isLoading}
+						className="inline-flex h-14 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-base font-semibold text-white shadow-[0_15px_30px_rgba(23,129,61,0.18)] transition duration-200 hover:from-emerald-700 hover:to-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 disabled:opacity-80 disabled:cursor-not-allowed"
 					>
-						Create admin account
+						{isLoading ? (
+							<>
+								<svg className="mr-3 h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+									<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+									<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								Sending Verification Code...
+							</>
+						) : (
+							'Create admin account'
+						)}
 					</button>
 				</form>
 

@@ -13,6 +13,7 @@ import {
 	Switch,
 	ActivityIndicator,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 
@@ -50,11 +51,41 @@ export default function Login() {
 			style={{ flex: 1, backgroundColor: '#f9f9ff' }}
 		>
 			<ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-				<View style={{ height: 260, backgroundColor: '#ddd' }}>
+				<View style={{ height: 260, backgroundColor: '#ddd', position: 'relative' }}>
 					<Image
 						source={{ uri: 'https://lh3.googleusercontent.com/aida/AP1WRLuZHDTzu9orrmYk32TZWeCAOwfRFgx99Dc1ghFS7EsLqjbO2X1TZu3mpTLySiDRPIC8ydoJ7FW2xhw1-6QKd_NwJRkvnlB9dAJOQm2yb0bGA-UfIAiaAodHYBYUyjqrdV_ThkdiDU53wj_4Gq68dkz3PNsmKwPh8FnkurARwxpIG3gkAuU8WWqfBfe-5N2adZSl7RUstt0T5PjB-RVfPxIHQOJeqmtBcPYxGcwPdwxg6txiREruiiiVOA' }}
 						style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
 					/>
+					<TouchableOpacity
+						onPress={() => {
+							if (router.canGoBack()) {
+								router.back()
+							} else {
+								router.replace('/')
+							}
+						}}
+						style={{
+							position: 'absolute',
+							top: Platform.OS === 'ios' ? 50 : 20,
+							left: 16,
+							width: 40,
+							height: 40,
+							borderRadius: 20,
+							backgroundColor: 'rgba(255, 255, 255, 0.9)',
+							alignItems: 'center',
+							justifyContent: 'center',
+							shadowColor: '#000',
+							shadowOffset: { width: 0, height: 2 },
+							shadowOpacity: 0.2,
+							shadowRadius: 4,
+							elevation: 5,
+							zIndex: 99,
+						}}
+						accessibilityRole="button"
+						accessibilityLabel="Go back"
+					>
+						<Ionicons name="arrow-back" size={24} color="#006c49" />
+					</TouchableOpacity>
 				</View>
 
 				<View style={{ maxWidth: 420, width: '100%', alignSelf: 'center', marginTop: -64, paddingHorizontal: 20 }}>
@@ -94,7 +125,7 @@ export default function Login() {
 								<Switch value={remember} onValueChange={setRemember} thumbColor={remember ? '#006c49' : undefined} />
 								<Text style={{ marginLeft: 8, color: '#6b7280' }}>Remember Me</Text>
 							</View>
-							<TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Forgot password flow coming soon')}>
+							<TouchableOpacity onPress={() => router.push('/forgotPwd')}>
 								<Text style={{ color: '#006c49', fontWeight: '700' }}>Forgot Password?</Text>
 							</TouchableOpacity>
 						</View>
@@ -104,7 +135,7 @@ export default function Login() {
 							{loading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Login</Text>}
 						</TouchableOpacity>
 
-						
+
 					</View>
 
 					<View style={{ alignItems: 'center', marginTop: 14 }}>

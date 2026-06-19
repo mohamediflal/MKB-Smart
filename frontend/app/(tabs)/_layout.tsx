@@ -68,7 +68,7 @@ export default function TabLayout() {
         }}
       />
 
-     
+
 
       <Tabs.Screen
         name="cart"
@@ -102,7 +102,7 @@ export default function TabLayout() {
         }}
       />
 
-       <Tabs.Screen
+      <Tabs.Screen
         name="ai"
         options={{
           title: "AI assist",
@@ -197,33 +197,57 @@ export default function TabLayout() {
 
       <Tabs.Screen
         name="myAddress"
-        options={{ href: null }}
+        options={{ href: null, tabBarStyle: { display: "none" } }}
+      />
+
+      <Tabs.Screen
+        name="myOrders"
+        options={{ href: null, tabBarStyle: { display: "none" } }}
       />
 
       <Tabs.Screen
         name="addNewAddress"
-        options={{ href: null }}
+        options={{ href: null, tabBarStyle: { display: "none" } }}
       />
 
       <Tabs.Screen
         name="editProfile"
-        options={{ href: null }}
+        options={{ href: null, tabBarStyle: { display: "none" } }}
       />
 
       <Tabs.Screen
         name="checkout"
-        options={{ href: null }}
+        options={{ href: null, tabBarStyle: { display: "none" } }}
       />
 
       <Tabs.Screen
         name="login"
-        options={{ href: null }}
+        options={{ href: null, tabBarStyle: { display: "none" } }}
       />
 
       <Tabs.Screen
         name="register"
-        options={{ href: null }}
+        options={{ href: null, tabBarStyle: { display: "none" } }}
+      />
+
+      <Tabs.Screen
+        name="otpPage"
+        options={{ href: null, tabBarStyle: { display: "none" } }}
+      />
+
+      <Tabs.Screen
+        name="forgotPwd"
+        options={{ href: null, tabBarStyle: { display: "none" } }}
+      />
+
+      <Tabs.Screen
+        name="resetPwd"
+        options={{ href: null, tabBarStyle: { display: "none" } }}
       />
     </Tabs>
+
+
+
+
   );
 }
