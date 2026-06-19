@@ -82,7 +82,7 @@ function downloadInvoicePDF(order, items) {
   doc.setFontSize(10);
   doc.setTextColor(...TEXT_MUTED);
   doc.text(order.customerEmail || "customer@mail.com", 110, infoStartY + 12);
-  
+
   const street = order.rawOrder?.shippingAddress?.street || "15 Keppetipola Rd";
   const city = order.rawOrder?.shippingAddress?.city || "Badulla, Sri Lanka";
   doc.text(street, 110, infoStartY + 18);
@@ -160,15 +160,29 @@ function downloadInvoicePDF(order, items) {
     currentY += 8;
   });
 
+  const subtotalVal = order.rawOrder?.subtotal || order.amount;
+  const deliveryFeeVal = order.rawOrder?.deliveryFee || 0;
+  const totalVal = order.rawOrder?.total || order.amount;
+
   currentY += 4;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...TEXT_DARK);
+  doc.text("Sub Total:", 145, currentY, { align: "right" });
+  doc.text(`Rs. ${subtotalVal.toFixed(2)}`, 185, currentY, { align: "right" });
+
+  currentY += 6;
+  doc.text("Delivery Fee:", 145, currentY, { align: "right" });
+  doc.text(`Rs. ${deliveryFeeVal.toFixed(2)}`, 185, currentY, { align: "right" });
+
+  currentY += 7;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(...TEXT_DARK);
-  doc.text("Invoice Total:", 145, currentY, { align: "right" });
+  doc.text("Total Amount:", 145, currentY, { align: "right" });
 
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setTextColor(...PRIMARY_COLOR);
-  doc.text(`Rs. ${order.amount.toFixed(2)}`, 185, currentY, { align: "right" });
+  doc.text(`Rs. ${totalVal.toFixed(2)}`, 185, currentY, { align: "right" });
 
   const footerY = 262;
 
@@ -189,7 +203,7 @@ function downloadInvoicePDF(order, items) {
   doc.save(filename);
 }
 
-const STATUSES = ["All", "Placed", "Processing", "Shipped", "Delivered", "Cancelled"];
+const STATUSES = ["All", "Pending", "Placed", "Processing", "Shipped", "Delivered", "Cancelled"];
 
 export default function Orders() {
   const [ordersList, setOrdersList] = useState([]);
@@ -214,8 +228,8 @@ export default function Orders() {
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.orders)) {
         const mapped = data.orders.map(order => {
-          const totalItems = Array.isArray(order.items) 
-            ? order.items.reduce((sum, it) => sum + (it.quantity || 1), 0) 
+          const totalItems = Array.isArray(order.items)
+            ? order.items.reduce((sum, it) => sum + (it.quantity || 1), 0)
             : 1;
 
           return {
@@ -223,7 +237,7 @@ export default function Orders() {
             customer: order.shippingAddress?.fullName || 'Guest Customer',
             customerEmail: order.shippingAddress?.email || `${(order.shippingAddress?.fullName || 'guest').toLowerCase().replace(/\s+/g, '.')}@mail.com`,
             amount: order.total,
-            status: order.status === 'Pending' ? 'Placed' : order.status,
+            status: order.status,
             date: new Date(order.createdAt).toISOString().slice(0, 10),
             items: totalItems,
             payment: order.paymentMethod === 'cod' ? 'Cash' : 'Card',
@@ -244,6 +258,11 @@ export default function Orders() {
   }, []);
 
   const handleStatusChange = async (orderId, newStatus) => {
+    if (newStatus === "Cancelled") {
+      alert("Admin or Super Admin cannot change order status to Cancelled.");
+      return;
+    }
+
     const session = getSession();
     const token = session?.token;
     const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
@@ -264,7 +283,7 @@ export default function Orders() {
       const data = await res.json();
       if (res.ok && data.success) {
         setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-        
+
         if (selectedOrder && selectedOrder.id === orderId) {
           setSelectedOrder(prev => ({ ...prev, status: newStatus }));
         }
@@ -290,24 +309,39 @@ export default function Orders() {
     setTimeout(() => setShowToast(false), 3000);
   };
 
+  const getOrderItemImage = (item) => {
+    if (!item) return "";
+    if (typeof item.image === "string") return item.image;
+    if (item.imageSource) {
+      if (typeof item.imageSource === "string") return item.imageSource;
+      if (typeof item.imageSource === "object" && item.imageSource !== null && item.imageSource.uri) {
+        return item.imageSource.uri;
+      }
+    }
+    if (typeof item.productImage === "string") return item.productImage;
+    return "";
+  };
+
   const getOrderItems = (order) => {
     if (order.rawOrder && Array.isArray(order.rawOrder.items)) {
       return order.rawOrder.items.map(item => {
+        const cleanPrice = String(item.price || "").replace(/Rs\./i, "").replace(/LKR/i, "").trim();
         const price = typeof item.price === 'number'
           ? item.price
-          : Number(String(item.price).replace(/[^0-9.]/g, "")) || 0;
+          : Number(cleanPrice.replace(/[^0-9.]/g, "")) || 0;
         return {
           name: item.name,
           qty: item.quantity,
           price: price,
-          total: price * item.quantity
+          total: price * item.quantity,
+          image: getOrderItemImage(item)
         };
       });
     }
 
     // Fallback logic
     const orderIdNum = parseInt(order.id.replace(/\D/g, ""), 10) || 0;
-    
+
     const availableProducts = products.length > 0 ? products : [
       { name: "Organic Bananas", price: 2.00, emoji: "🍌" },
       { name: "Whole Milk 1L", price: 3.50, emoji: "🥛" },
@@ -324,7 +358,7 @@ export default function Orders() {
     for (let i = 0; i < itemCount; i++) {
       const prodIndex = (orderIdNum + i) % availableProducts.length;
       const prod = availableProducts[prodIndex];
-      
+
       if (i === itemCount - 1) {
         const price = parseFloat(remainingAmount.toFixed(2));
         if (price > 0) {
@@ -368,6 +402,58 @@ export default function Orders() {
   return (
     <div>
       <PageHeader title="Orders" subtitle="Track and manage customer orders" />
+
+      {/* Pending Orders */}
+      {ordersList.filter(o => o.status === "Pending").length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="relative flex h-3.5 w-3.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500"></span>
+            </span>
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
+              Pending Orders ({ordersList.filter(o => o.status === "Pending").length})
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {ordersList.filter(o => o.status === "Pending").map((o) => (
+              <Card key={o.id} className="p-4 border-l-4 border-l-amber-500 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs text-muted-foreground" title={o.id}>
+                      #{o.id.slice(0, 8).toUpperCase()}...
+                    </span>
+                    <span className="text-[11px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider">
+                      Pending
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-foreground">{o.customer}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{o.items} items · Rs. {o.amount.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Payment: {o.payment}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setSelectedOrder(o)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-foreground py-1.5 px-3 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                  >
+                    View Details
+                  </button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+
+
+
+
+
+
+
       <Card className="!p-0">
         <div className="flex flex-wrap items-center gap-2 p-4 border-b border-border">
           <div className="flex-1 min-w-64 relative">
@@ -431,14 +517,14 @@ export default function Orders() {
                       <td className="px-6 py-3 text-foreground">{o.date}</td>
                       <td className="px-6 py-3 text-center">
                         <div className="flex items-center justify-center gap-2 text-foreground">
-                          <button 
+                          <button
                             onClick={() => setSelectedOrder(o)}
                             className="rounded-md p-1.5 hover:bg-accent hover:text-foreground cursor-pointer"
                             title="View Details"
                           >
                             <Eye size={20} />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handlePrint(o)}
                             className="rounded-md p-1.5 hover:bg-accent hover:text-foreground cursor-pointer"
                             title="Print Invoice"
@@ -458,12 +544,12 @@ export default function Orders() {
 
       {/* Order Details Modal */}
       {selectedOrder && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
           style={{ backgroundColor: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)" }}
           onClick={() => setSelectedOrder(null)}
         >
-          <div 
+          <div
             className="bg-white dark:bg-slate-900 rounded-[28px] shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
@@ -477,8 +563,8 @@ export default function Orders() {
                   {selectedOrder.status}
                 </span>
               </div>
-              <button 
-                onClick={() => setSelectedOrder(null)} 
+              <button
+                onClick={() => setSelectedOrder(null)}
                 className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
               >
                 <X size={20} />
@@ -493,7 +579,7 @@ export default function Orders() {
                   <div>
                     <h4 className="text-[11px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">Customer</h4>
                     <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-200 mt-1">{selectedOrder.customer}</p>
-                    <p className="text-sm text-slate-500 mt-0.5">{selectedOrder.customerEmail || "customer@mail.com"}</p>
+
                   </div>
                   <div>
                     <h4 className="text-[11px] font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">Delivery Address</h4>
@@ -540,11 +626,10 @@ export default function Orders() {
                           {idx < 3 && (
                             <div className="absolute left-[13px] top-7 bottom-[-24px] w-0.5 bg-slate-100 dark:bg-slate-800" />
                           )}
-                          <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 z-10 ${
-                            isCompleted 
-                              ? "bg-emerald-600 text-white" 
-                              : "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                          }`}>
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 z-10 ${isCompleted
+                            ? "bg-emerald-600 text-white"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                            }`}>
                             {isCompleted ? <Check size={14} strokeWidth={3} /> : idx + 1}
                           </div>
                           <div className="pt-0.5">
@@ -567,21 +652,47 @@ export default function Orders() {
                       <th className="px-6 py-3">Product</th>
                       <th className="px-6 py-3 text-center">Qty</th>
                       <th className="px-6 py-3 text-right">Price</th>
-                      <th className="px-6 py-3 text-right">Total</th>
+                      {/* <th className="px-6 py-3 text-right">Total</th> */}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                     {getOrderItems(selectedOrder).map((item, index) => (
                       <tr key={index}>
-                        <td className="px-6 py-3.5 font-medium text-slate-950 dark:text-white">{item.name}</td>
+                        <td className="px-6 py-3.5 font-medium text-slate-950 dark:text-white">
+                          <div className="flex items-center gap-3">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="h-10 w-10 rounded-lg object-cover bg-slate-100 border border-slate-100"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-lg bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center text-base">
+                                📦
+                              </div>
+                            )}
+                            <span>{item.name}</span>
+                          </div>
+                        </td>
                         <td className="px-6 py-3.5 text-center text-slate-500">{item.qty}</td>
-                        <td className="px-6 py-3.5 text-right text-slate-500">Rs. {item.price.toFixed(2)}</td>
-                        <td className="px-6 py-3.5 text-right font-medium text-slate-950 dark:text-white">Rs. {item.total.toFixed(2)}</td>
+                        <td className="px-6 py-3.5 text-right text-slate-500">Rs. {item.qty} x { (item.price).toFixed(2)}</td>
+                        {/* <td className="px-6 py-3.5 text-right font-medium text-slate-950 dark:text-white">Rs. {item.total.toFixed(2)}</td> */}
                       </tr>
                     ))}
+
                     <tr className="bg-slate-50/20 dark:bg-slate-800/20">
-                      <td colSpan={3} className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white">Order total</td>
-                      <td className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white text-base">Rs. {selectedOrder.amount.toFixed(2)}</td>
+                      <td colSpan={2} className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white">Sub Total</td>
+                      <td className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white text-base">Rs. {(selectedOrder.rawOrder?.subtotal || selectedOrder.amount).toFixed(2)}</td>
+                    </tr>
+
+                    <tr className="bg-slate-50/20 dark:bg-slate-800/20">
+                      <td colSpan={2} className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white">Delivery Fee</td>
+                      <td className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white text-base">Rs. {(selectedOrder.rawOrder?.deliveryFee || 0).toFixed(2)}</td>
+                    </tr>
+
+                    <tr className="bg-slate-50/20 dark:bg-slate-800/20">
+                      <td colSpan={2} className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white">Total Amount</td>
+                      <td className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-white text-base">Rs. {(selectedOrder.rawOrder?.total || selectedOrder.amount).toFixed(2)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -592,17 +703,18 @@ export default function Orders() {
             <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50/50 dark:bg-slate-800/20">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium text-slate-500">Update status:</span>
-                <select 
+                <select
                   value={selectedOrder.status}
                   onChange={(e) => handleStatusChange(selectedOrder.id, e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 px-3 py-2 text-sm outline-none cursor-pointer focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200"
+                  disabled={selectedOrder.status === "Cancelled" || selectedOrder.status === "Pending"}
+                  className="rounded-xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 px-3 py-2 text-sm outline-none cursor-pointer focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {STATUSES.filter(s => s !== "All").map((status) => (
-                    <option key={status} value={status}>{status}</option>
+                  {STATUSES.filter(s => s !== "All" && (s !== "Cancelled" || selectedOrder.status === "Cancelled") && (s !== "Pending" || selectedOrder.status === "Pending")).map((status) => (
+                    <option key={status} value={status} disabled={status === "Cancelled" || status === "Pending"}>{status}</option>
                   ))}
                 </select>
               </div>
-              <button 
+              <button
                 onClick={() => handlePrint(selectedOrder)}
                 className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm cursor-pointer"
               >

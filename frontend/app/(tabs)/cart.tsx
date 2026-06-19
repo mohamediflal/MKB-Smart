@@ -20,7 +20,9 @@ type CartItem = ReturnType<typeof useCart>["cartItems"][number];
 type MeasurementUnit = "kg" | "l";
 
 function parsePrice(value: string) {
-  return Number(value.replace(/[^0-9]/g, "")) || 0;
+  const clean = value.replace(/Rs\./i, "").replace(/LKR/i, "").trim();
+  const numeric = Number(value.replace(/[^0-9]/g, "")) || 0;
+  return clean.includes(".") ? numeric / 100 : numeric;
 }
 
 const formatLkr = (value: number) =>
@@ -113,7 +115,7 @@ function CartCard({
   onDecrement,
   onAdjustQuantity,
   onOpenEditor,
-  
+
 }: {
   item: CartItem;
   onRemove: (id: string) => void;
@@ -129,7 +131,7 @@ function CartCard({
   const quantityLabel = formatQuantityLabel(item.subtitle, item.quantity);
   const measuredUnit = getMeasurementUnit(item.subtitle);
   const measuredStep = measuredUnit ? 0.05 : 1;
-  
+
 
   return (
     <View className="flex-row overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm">
@@ -174,7 +176,7 @@ function CartCard({
             <Text className="text-lg font-extrabold text-[#15803d]">
               {formatLkr(lineTotal)}
             </Text>
-            
+
           </View>
 
           <View className="flex-row items-center rounded-full border border-slate-200 bg-slate-50 px-1 py-1 shadow-sm">
@@ -368,7 +370,7 @@ export default function CartScreen() {
         contentContainerClassName="px-4 pb-40 pt-5"
         showsVerticalScrollIndicator={false}
       >
-        
+
 
         <View className="mt-2 gap-4">
           {cartItems.length > 0 ? (
@@ -396,7 +398,7 @@ export default function CartScreen() {
           )}
         </View>
 
-      
+
 
         <View className="mt-5 mb-20 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <Text className="text-xl font-extrabold tracking-tight text-slate-900">Order Summary</Text>
@@ -412,7 +414,7 @@ export default function CartScreen() {
               <Text className="text-sm font-medium text-slate-800">{formatLkr(DELIVERY_FEE)}</Text>
             </View>
 
-            <View className="my-2 h-px bg-slate-200" /> 
+            <View className="my-2 h-px bg-slate-200" />
 
             <View className="flex-row items-end justify-between">
               <Text className="text-lg font-bold text-slate-900">Total</Text>

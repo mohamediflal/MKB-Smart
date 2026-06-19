@@ -16,19 +16,32 @@ function Icon({ children, className = '' }) {
 function ForgotPassword() {
 	const navigate = useNavigate()
 	const [email, setEmail] = useState('')
-	const [submitted, setSubmitted] = useState(false)
+	const [error, setError] = useState(null)
 	const [isLoading, setIsLoading] = useState(false)
 
-	const handleSubmit = (event) => {
+	const handleSubmit = async (event) => {
 		event.preventDefault()
 		if (!email) return
 		
 		setIsLoading(true)
-		// Simulate network request
-		setTimeout(() => {
+		setError(null)
+		try {
+			const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+			const res = await fetch(`${base}/api/auth/forgot-password`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: email.trim(), role: 'admin' }),
+			})
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}))
+				throw new Error(data.message || 'Failed to send OTP')
+			}
+			navigate('/auth/admin/otp', { state: { email: email.trim(), mode: 'forgot', role: 'admin' } })
+		} catch (err) {
+			setError(err?.message || 'Failed to send verification code')
+		} finally {
 			setIsLoading(false)
-			setSubmitted(true)
-		}, 1500)
+		}
 	}
 
 	return (
@@ -76,69 +89,52 @@ function ForgotPassword() {
 							<div className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">Account Recovery</div>
 							<h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Forgot Password</h1>
 							<p className="mt-3 text-sm leading-7 text-slate-500">
-								{!submitted ? "Enter your email address and we'll send you link to reset your password." : "We've sent a recovery email to your inbox."}
+								Enter your email address and we will send you a 6-digit OTP verification code to reset your password.
 							</p>
 						</div>
 
-						{!submitted ? (
-							<form onSubmit={handleSubmit} className="space-y-5">
-								<label className="block">
-									<div className="mb-2 text-sm font-semibold text-slate-800">Email</div>
-									<div className="relative">
-										<span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
-											<svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
-												<path d="M4 7.5h16v9H4v-9Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-												<path d="m4.5 8 7.5 6 7.5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-											</svg>
-										</span>
-										<input
-											type="email"
-											required
-											value={email}
-											onChange={(event) => setEmail(event.target.value)}
-											placeholder="you@mkbsmart.com"
-											className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.05)] outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
-										/>
-									</div>
-								</label>
-
-								<button
-									type="submit"
-									disabled={isLoading}
-									className="mt-2 flex h-14 w-full items-center justify-center rounded-2xl bg-[#17813d] text-base font-semibold text-white shadow-[0_16px_30px_rgba(23,129,61,0.25)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#126732] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:-translate-y-0"
-								>
-									{isLoading ? (
-										<>
-											<svg className="mr-3 h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-												<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-												<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-											</svg>
-											Sending...
-										</>
-									) : (
-										'Send Recovery Email'
-									)}
-								</button>
-							</form>
-						) : (
-							<div className="space-y-5">
-								<div className="rounded-[1.6rem] border border-emerald-100 bg-emerald-50/30 p-5 text-center text-emerald-800">
-									<svg viewBox="0 0 24 24" fill="none" className="mx-auto h-12 w-12 text-emerald-600 mb-2">
-										<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-										<path d="M22 4 12 14.01l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-									</svg>
-									<span className="font-semibold text-lg block">Email Sent!</span>
-									<span className="text-sm mt-1 block">Please check your inbox at <strong>{email}</strong> for instructions.</span>
+						<form onSubmit={handleSubmit} className="space-y-5">
+							<label className="block">
+								<div className="mb-2 text-sm font-semibold text-slate-800">Email</div>
+								<div className="relative">
+									<span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
+										<svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+											<path d="M4 7.5h16v9H4v-9Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+											<path d="m4.5 8 7.5 6 7.5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+										</svg>
+									</span>
+									<input
+										type="email"
+										required
+										value={email}
+										onChange={(event) => setEmail(event.target.value)}
+										placeholder="you@mkbsmart.com"
+										className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.05)] outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+									/>
 								</div>
-								<button
-									type="button"
-									onClick={() => navigate('/auth/admin')}
-									className="h-14 w-full rounded-2xl bg-[#17813d] text-base font-semibold text-white shadow-[0_16px_30px_rgba(23,129,61,0.25)] transition duration-200 hover:bg-[#126732]"
-								>
-									Return to Login
-								</button>
-							</div>
-						)}
+							</label>
+
+							{error && <p className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+
+							<button
+								type="submit"
+								disabled={isLoading}
+								className="mt-2 flex h-14 w-full items-center justify-center rounded-2xl bg-[#17813d] text-base font-semibold text-white shadow-[0_16px_30px_rgba(23,129,61,0.25)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#126732] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:-translate-y-0"
+							>
+								{isLoading ? (
+									<>
+										<svg className="mr-3 h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+											<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										Sending OTP...
+									</>
+								) : (
+									'Send OTP Code'
+								)}
+							</button>
+						</form>
+
 					</div>
 				</section>
 			</div>

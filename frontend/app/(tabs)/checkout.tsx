@@ -29,7 +29,9 @@ function formatLkr(value: number) {
 }
 
 function parsePrice(value: string) {
-	return Number(value.replace(/[^0-9]/g, "")) || 0;
+	const clean = value.replace(/Rs\./i, "").replace(/LKR/i, "").trim();
+	const numeric = Number(value.replace(/[^0-9]/g, "")) || 0;
+	return clean.includes(".") ? numeric / 100 : numeric;
 }
 
 function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
@@ -239,7 +241,7 @@ export default function CheckoutScreen() {
 									</Text>
 									<Text className="mt-1 text-sm leading-6 text-slate-600">
 										{primaryAddress
-											? `${primaryAddress.street}, ${primaryAddress.city}${primaryAddress.postalCode ? `, ${primaryAddress.postalCode}` : ""}`
+											? `${primaryAddress.street}, ${primaryAddress.district ? `${primaryAddress.district}, ` : ""}${primaryAddress.city}${primaryAddress.postalCode ? `, ${primaryAddress.postalCode}` : ""}`
 											: "Add a delivery address to continue."}
 									</Text>
 									<Text className="mt-2 text-sm text-slate-500">
@@ -278,6 +280,7 @@ export default function CheckoutScreen() {
 														fullName: address.fullName,
 														phone: address.phone,
 														street: address.street,
+														district: address.district,
 														city: address.city,
 														postalCode: address.postalCode,
 														isPrimary: true,
@@ -413,7 +416,7 @@ export default function CheckoutScreen() {
 				visible={isSuccessModalVisible}
 				transparent
 				animationType="fade"
-				onRequestClose={() => {}}
+				onRequestClose={() => { }}
 			>
 				<View className="flex-1 items-center justify-center bg-black/60 px-6">
 					<View className="w-full max-w-[360px] overflow-hidden rounded-[32px] bg-white p-6 shadow-2xl items-center animate-in fade-in duration-300">
@@ -452,7 +455,7 @@ export default function CheckoutScreen() {
 							<View className="h-px bg-slate-200 my-1.5" />
 							<Text className="text-[11px] text-slate-500 leading-4">
 								<Text className="font-bold text-slate-700">Deliver to: </Text>
-								{createdOrder?.shippingAddress ? `${createdOrder.shippingAddress.street}, ${createdOrder.shippingAddress.city}` : ""}
+								{createdOrder?.shippingAddress ? `${createdOrder.shippingAddress.street}, ${createdOrder.shippingAddress.district ? `${createdOrder.shippingAddress.district}, ` : ""}${createdOrder.shippingAddress.city}` : ""}
 							</Text>
 						</View>
 

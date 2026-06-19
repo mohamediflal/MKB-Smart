@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
 	ActivityIndicator,
 	Modal,
@@ -7,6 +7,8 @@ import {
 	ScrollView,
 	Text,
 	View,
+	Alert,
+	Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +38,7 @@ type OrderRecord = {
 		fullName: string;
 		phone: string;
 		street: string;
+		district?: string;
 		city: string;
 		postalCode?: string;
 	};
@@ -75,6 +78,10 @@ function StatusBadge({ status }: { status: string }) {
 	let textColor = "text-slate-700";
 
 	switch (status.toLowerCase()) {
+		case "pending":
+			bgColor = "bg-amber-50 border border-amber-200";
+			textColor = "text-amber-700";
+			break;
 		case "placed":
 			bgColor = "bg-blue-50 border border-blue-200";
 			textColor = "text-blue-700";
@@ -114,6 +121,20 @@ export default function MyOrdersScreen() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
+	const [currentTime, setCurrentTime] = useState(Date.now());
+
+	useEffect(() => {
+		const interval = setInterval(() => {
+			setCurrentTime(Date.now());
+		}, 1000);
+		return () => clearInterval(interval);
+	}, []);
+
+	const isOrderCancellable = (order: OrderRecord) => {
+		if (order.status !== "Pending") return false;
+		const createdTime = new Date(order.createdAt).getTime();
+		return currentTime - createdTime < 60000;
+	};
 
 	const fetchOrders = useCallback(async (showIndicator = true) => {
 		if (!user || !user.token) {
@@ -145,6 +166,46 @@ export default function MyOrdersScreen() {
 			setIsRefreshing(false);
 		}
 	}, [user]);
+
+	const handleCancelOrder = async (orderId: string) => {
+		Alert.alert(
+			"Cancel Order",
+			"Are you sure you want to cancel this order?",
+			[
+				{ text: "No", style: "cancel" },
+				{
+					text: "Yes, Cancel It",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							const token = user?.token;
+							if (!token) return;
+
+							const res = await fetch(`${API_BASE_URL}/api/orders/cancel`, {
+								method: "POST",
+								headers: {
+									"Content-Type": "application/json",
+									"Authorization": `Bearer ${token}`
+								},
+								body: JSON.stringify({ orderId })
+							});
+
+							const data = await res.json();
+							if (res.ok && data.success) {
+								Alert.alert("Order Cancelled", "Your order has been successfully cancelled.");
+								fetchOrders();
+								setSelectedOrder(null);
+							} else {
+								Alert.alert("Error", data.message || "Failed to cancel order.");
+							}
+						} catch (error) {
+							Alert.alert("Error", "Network error. Failed to cancel order.");
+						}
+					}
+				}
+			]
+		);
+	};
 
 	useFocusEffect(
 		useCallback(() => {
@@ -251,6 +312,25 @@ export default function MyOrdersScreen() {
 											{totalItems} item{totalItems > 1 ? "s" : ""} (
 											{order.items.map((it) => `${it.name} x${it.quantity}`).join(", ")})
 										</Text>
+
+										{/* Horizontal row of product thumbnails */}
+										<View className="flex-row flex-wrap gap-2 mt-3.5">
+											{order.items.map((it, idx) => {
+												const imgUrl = getOrderItemImage(it);
+												return imgUrl ? (
+													<Image
+														key={idx}
+														source={{ uri: imgUrl }}
+														style={{ width: 38, height: 38, borderRadius: 6, backgroundColor: "#fff", borderWidth: 1, borderColor: "#f1f5f9" }}
+														resizeMode="cover"
+													/>
+												) : (
+													<View key={idx} style={{ width: 38, height: 38, borderRadius: 6, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#f1f5f9", alignItems: "center", justifyContent: "center" }}>
+														<Text style={{ fontSize: 13 }}>📦</Text>
+													</View>
+												);
+											})}
+										</View>
 									</View>
 
 									<View className="flex-row items-center justify-between border-t border-slate-100 pt-3">
@@ -266,6 +346,26 @@ export default function MyOrdersScreen() {
 											<Ionicons name="chevron-forward" size={14} color="#15803d" />
 										</View>
 									</View>
+
+									{order.status !== "Cancelled" && (
+										<View className="mt-3 pt-3 border-t border-dashed border-slate-100 flex-row justify-end">
+											<Pressable
+												onPress={(e) => {
+													e.stopPropagation();
+													if (isOrderCancellable(order)) {
+														handleCancelOrder(order.id);
+													} else {
+														Alert.alert("Cancel Order", "You can't cancel the order After 1 minute. Contact the customer support");
+													}
+												}}
+												className="bg-rose-50 border border-rose-200 px-4 py-2 rounded-full active:bg-rose-100"
+											>
+												<Text className="text-xs font-bold text-rose-600">
+													{isOrderCancellable(order) ? "Cancel Order" : "Cancel !"}
+												</Text>
+											</Pressable>
+										</View>
+									)}
 								</Pressable>
 							);
 						})}
@@ -347,25 +447,41 @@ export default function MyOrdersScreen() {
 							<Text className="text-[11px] font-bold uppercase tracking-[1.5px] text-slate-400 mb-3.5">
 								Items Purchased
 							</Text>
-							<View className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-5" style={{ gap: 10 }}>
-								{selectedOrder?.items.map((item) => (
-									<View key={item.id} className="flex-row items-center justify-between">
-										<View className="flex-1 pr-3">
-											<Text className="text-[14px] font-bold text-slate-800" numberOfLines={1}>
-												{item.name}
+							<View className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-5" style={{ gap: 12 }}>
+								{selectedOrder?.items.map((item) => {
+									const imgUrl = getOrderItemImage(item);
+									return (
+										<View key={item.id} className="flex-row items-center justify-between">
+											<View className="flex-row items-center flex-1 pr-3">
+												{imgUrl ? (
+													<Image
+														source={{ uri: imgUrl }}
+														style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12, backgroundColor: "#fff" }}
+														resizeMode="cover"
+													/>
+												) : (
+													<View style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12, backgroundColor: "#f1f5f9", alignItems: "center", justifyContent: "center" }}>
+														<Text style={{ fontSize: 16 }}>📦</Text>
+													</View>
+												)}
+												<View className="flex-1">
+													<Text className="text-[14px] font-bold text-slate-800" numberOfLines={1}>
+														{item.name}
+													</Text>
+													<Text className="text-xs text-slate-500 mt-0.5">
+														{item.price} each
+													</Text>
+												</View>
+											</View>
+											<Text className="text-[14px] font-semibold text-slate-500 mr-4">
+												x{item.quantity}
 											</Text>
-											<Text className="text-xs text-slate-500 mt-0.5">
-												{item.price} each
+											<Text className="text-[14px] font-extrabold text-slate-800">
+												{formatLkr(parsePrice(item.price) * item.quantity)}
 											</Text>
 										</View>
-										<Text className="text-[14px] font-semibold text-slate-500 mr-4">
-											x{item.quantity}
-										</Text>
-										<Text className="text-[14px] font-extrabold text-slate-800">
-											{formatLkr(parsePrice(item.price) * item.quantity)}
-										</Text>
-									</View>
-								))}
+									);
+								})}
 							</View>
 
 							{/* Delivery Info */}
@@ -377,7 +493,7 @@ export default function MyOrdersScreen() {
 									{selectedOrder?.shippingAddress.fullName}
 								</Text>
 								<Text className="text-[13px] text-slate-600 mt-1.5 leading-5">
-									{selectedOrder?.shippingAddress.street}, {selectedOrder?.shippingAddress.city}
+									{selectedOrder?.shippingAddress.street}, {selectedOrder?.shippingAddress.district ? `${selectedOrder.shippingAddress.district}, ` : ""}{selectedOrder?.shippingAddress.city}
 									{selectedOrder?.shippingAddress.postalCode ? `, ${selectedOrder.shippingAddress.postalCode}` : ""}
 								</Text>
 								<View className="flex-row items-center gap-1.5 mt-3">
@@ -426,6 +542,23 @@ export default function MyOrdersScreen() {
 								</View>
 							</View>
 						</ScrollView>
+
+						{selectedOrder && selectedOrder.status !== "Cancelled" && (
+							<Pressable
+								onPress={() => {
+									if (isOrderCancellable(selectedOrder)) {
+										handleCancelOrder(selectedOrder.id);
+									} else {
+										Alert.alert("Cancel Order", "You can't cancel the order After 1 minute.");
+									}
+								}}
+								className="mt-4 bg-rose-600 active:bg-rose-700 py-3.5 rounded-2xl items-center justify-center"
+							>
+								<Text className="text-white font-extrabold text-[15px]">
+									{isOrderCancellable(selectedOrder) ? "Cancel Order" : "Cancel !"}
+								</Text>
+							</Pressable>
+						)}
 					</View>
 				</View>
 			</Modal>
@@ -435,5 +568,21 @@ export default function MyOrdersScreen() {
 
 // Utility function to parse standard LKR prices
 function parsePrice(value: string) {
-	return Number(value.replace(/[^0-9]/g, "")) || 0;
+	const clean = value.replace(/Rs\./i, "").replace(/LKR/i, "").trim();
+	const numeric = Number(value.replace(/[^0-9]/g, "")) || 0;
+	return clean.includes(".") ? numeric / 100 : numeric;
+}
+
+// Utility function to resolve order item image
+function getOrderItemImage(item: any) {
+	if (!item) return "";
+	if (typeof item.image === "string") return item.image;
+	if (item.imageSource) {
+		if (typeof item.imageSource === "string") return item.imageSource;
+		if (typeof item.imageSource === "object" && item.imageSource !== null && "uri" in item.imageSource) {
+			return item.imageSource.uri || "";
+		}
+	}
+	if (typeof item.productImage === "string") return item.productImage;
+	return "";
 }

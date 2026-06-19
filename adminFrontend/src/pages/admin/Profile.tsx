@@ -27,18 +27,17 @@ export default function AdminProfile() {
             </div>
           </div>
         </div>
-        <div className="mt-8 grid sm:grid-cols-2 gap-4">
+        {/* <div className="mt-8 grid sm:grid-cols-2 gap-4">
           <Field label="Full name" defaultValue={user.name} />
           <Field label="Email" defaultValue={user.email} />
-          <Field label="Phone" defaultValue="+94 552 220 022" />
-          <Field label="Timezone" defaultValue="Asia/Colombo" />
-        </div>
-        <button
+
+        </div> */}
+        {/* <button
           onClick={() => alert("Profile updated successfully (Simulated)")}
           className="mt-6 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-95 cursor-pointer"
         >
           Save changes
-        </button>
+        </button> */}
       </Card>
     </div>
   );
