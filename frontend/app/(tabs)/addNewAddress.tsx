@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AddressLabel, useAddresses } from "@/context/AddressContext";
+import { useAuth } from "@/context/AuthContext";
 
 type AddressChip = AddressLabel;
 
@@ -13,13 +14,15 @@ export default function AddNewAddressScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ addressId?: string }>();
   const { addresses, addAddress, updateAddress } = useAddresses();
+  const { user } = useAuth();
   const editingAddress = params.addressId ? addresses.find((address) => address.id === params.addressId) : undefined;
   const isEditing = Boolean(editingAddress);
 
   const [selectedLabel, setSelectedLabel] = useState<AddressChip>("Home");
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState(user?.name || "");
   const [phone, setPhone] = useState("");
   const [street, setStreet] = useState("");
+  const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [isPrimary, setIsPrimary] = useState(true);
@@ -27,6 +30,14 @@ export default function AddNewAddressScreen() {
 
   useEffect(() => {
     if (!editingAddress) {
+      setSelectedLabel("Home");
+      setFullName(user?.name || "");
+      setPhone("");
+      setStreet("");
+      setDistrict("");
+      setCity("");
+      setPostalCode("");
+      setIsPrimary(true);
       return;
     }
 
@@ -34,14 +45,15 @@ export default function AddNewAddressScreen() {
     setFullName(editingAddress.fullName);
     setPhone(editingAddress.phone);
     setStreet(editingAddress.street);
+    setDistrict(editingAddress.district);
     setCity(editingAddress.city);
     setPostalCode(editingAddress.postalCode);
     setIsPrimary(editingAddress.isPrimary);
   }, [editingAddress]);
 
   const canSave = useMemo(
-    () => fullName.trim().length > 0 && phone.trim().length > 0 && street.trim().length > 0 && city.trim().length > 0,
-    [fullName, phone, street, city],
+    () => fullName.trim().length > 0 && phone.trim().length > 0 && street.trim().length > 0 && city.trim().length > 0 && district.trim().length > 0,
+    [fullName, phone, street, district, city],
   );
 
   const handleSave = useCallback(async () => {
@@ -54,6 +66,7 @@ export default function AddNewAddressScreen() {
       fullName: fullName.trim(),
       phone: phone.trim(),
       street: street.trim(),
+      district: district.trim(),
       city: city.trim(),
       postalCode: postalCode.trim(),
       isPrimary,
@@ -65,12 +78,20 @@ export default function AddNewAddressScreen() {
         await updateAddress(editingAddress.id, payload);
       } else {
         await addAddress(payload);
+        setSelectedLabel("Home");
+        setFullName(user?.name || "");
+        setPhone("");
+        setStreet("");
+        setDistrict("");
+        setCity("");
+        setPostalCode("");
+        setIsPrimary(true);
       }
       router.replace("/myAddress");
     } finally {
       setIsSaving(false);
     }
-  }, [canSave, isSaving, selectedLabel, fullName, phone, street, city, postalCode, isPrimary, isEditing, editingAddress, addAddress, updateAddress, router]);
+  }, [canSave, isSaving, selectedLabel, fullName, phone, street, district, city, postalCode, isPrimary, isEditing, editingAddress, addAddress, updateAddress, router]);
 
   return (
     <SafeAreaView className="flex-1 bg-[#f5f5f5]" edges={["top"]}>
@@ -125,27 +146,27 @@ export default function AddNewAddressScreen() {
                 Address Label
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 16 }}>
-              {chips.map((chip) => {
-                const active = chip === selectedLabel;
-                return (
-                  <Pressable
-                    key={chip}
-                    onPress={() => setSelectedLabel(chip)}
-                    className={`rounded-full border px-4 py-2.5 ${active ? "border-[#0d631b] bg-[#0d631b]" : "border-[#bfcaba] bg-white"}`}
-                    accessibilityRole="button"
-                    accessibilityLabel={chip}
-                  >
-                    <Text className={`text-[12px] font-bold ${active ? "text-white" : "text-[#40493d]"}`}>
-                      {chip}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                {chips.map((chip) => {
+                  const active = chip === selectedLabel;
+                  return (
+                    <Pressable
+                      key={chip}
+                      onPress={() => setSelectedLabel(chip)}
+                      className={`rounded-full border px-4 py-2.5 ${active ? "border-[#0d631b] bg-[#0d631b]" : "border-[#bfcaba] bg-white"}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={chip}
+                    >
+                      <Text className={`text-[12px] font-bold ${active ? "text-white" : "text-[#40493d]"}`}>
+                        {chip}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
-             <View className="space-y-100   pt-5">
-            <InputField label="Full Name" value={fullName} onChangeText={setFullName} placeholder="Enter your full name" />
-           </View>
+            <View className="space-y-100   pt-5">
+              <InputField label="Full Name" value={fullName} onChangeText={setFullName} placeholder="Enter your full name" />
+            </View>
             <InputField
               label="Phone Number"
               value={phone}
@@ -163,13 +184,20 @@ export default function AddNewAddressScreen() {
               numberOfLines={3}
             />
 
+
+
             <View className="flex-row gap-3">
+
               <View className="flex-1">
-                <InputField label="City/District" value={city} onChangeText={setCity} placeholder="e.g. Brooklyn" />
+                <InputField label="City" value={city} onChangeText={setCity} placeholder="e.g. Brooklyn" />
               </View>
               <View className="flex-1">
                 <InputField label="Postal Code" value={postalCode} onChangeText={setPostalCode} placeholder="11201" />
               </View>
+            </View>
+
+            <View className="flex-1">
+              <InputField label="District" value={district} onChangeText={setDistrict} placeholder="e.g. Brooklyn" />
             </View>
 
             <View className="flex-row items-center justify-between rounded-[22px] border border-[#bfcaba] bg-[#f1f5eb] px-4 py-4">

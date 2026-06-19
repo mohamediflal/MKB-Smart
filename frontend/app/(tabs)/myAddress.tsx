@@ -9,90 +9,90 @@ function AddressCard({
 	onEdit,
 	onDelete,
 	onSetPrimary,
-  title,
-  addressLine1,
-  addressLine2,
-  phone,
-  icon,
-  primaryBorder,
-  primaryBadge,
-  showPrimaryButton,
+	title,
+	addressLine1,
+	addressLine2,
+	phone,
+	icon,
+	primaryBorder,
+	primaryBadge,
+	showPrimaryButton,
 }: {
 	onEdit: () => void;
 	onDelete: () => void;
 	onSetPrimary?: () => void;
-  title: string;
-  addressLine1: string;
-  addressLine2: string;
-  phone: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  primaryBorder?: boolean;
-  primaryBadge?: boolean;
-  showPrimaryButton?: boolean;
+	title: string;
+	addressLine1: string;
+	addressLine2: string;
+	phone: string;
+	icon: keyof typeof Ionicons.glyphMap;
+	primaryBorder?: boolean;
+	primaryBadge?: boolean;
+	showPrimaryButton?: boolean;
 }) {
-  return (
-	    <View
-		    className={`rounded-2xl bg-white px-4 py-4 shadow-sm ${primaryBorder ? "border border-[#15803d]" : "border border-slate-200"}`}
-		    style={{ shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 }}
-    >
+	return (
+		<View
+			className={`rounded-2xl bg-white px-4 py-4 shadow-sm ${primaryBorder ? "border border-[#15803d]" : "border border-slate-200"}`}
+			style={{ shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 }}
+		>
 			<View className="mb-4 flex-row items-start justify-between">
 				<View className="flex-1 flex-row items-start gap-3 pr-3">
-										<View className="h-11 w-11 items-center justify-center rounded-full bg-[#15803d]/10">
+					<View className="h-11 w-11 items-center justify-center rounded-full bg-[#15803d]/10">
 						<Ionicons name={icon} size={20} color="#0d631b" />
 					</View>
 					<View className="flex-1 pt-0.5">
 						<Text className="text-[12px] font-bold uppercase tracking-[1.2px] text-slate-500">
-              {title}
-            </Text>
+							{title}
+						</Text>
 						{primaryBadge ? (
-														<View className="mt-1 self-start rounded-full bg-[#15803d] px-2.5 py-0.5">
+							<View className="mt-1 self-start rounded-full bg-[#15803d] px-2.5 py-0.5">
 								<Text className="text-[10px] font-bold text-white">PRIMARY</Text>
 							</View>
 						) : null}
-          </View>
-        </View>
+					</View>
+				</View>
 
 				<View className="flex-row gap-3 pt-0.5">
 					<Pressable
-												onPress={onEdit}
+						onPress={onEdit}
 						accessibilityRole="button"
 						accessibilityLabel={`Edit ${title} address`}
-												className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
+						className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
 					>
-												<Ionicons name="create-outline" size={19} color="#40493d" />
+						<Ionicons name="create-outline" size={19} color="#40493d" />
 					</Pressable>
 					<Pressable
-												onPress={onDelete}
+						onPress={onDelete}
 						accessibilityRole="button"
 						accessibilityLabel={`Delete ${title} address`}
-												className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
+						className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
 					>
-												<Ionicons name="trash-outline" size={19} color="#ba1a1a" />
+						<Ionicons name="trash-outline" size={19} color="#ba1a1a" />
 					</Pressable>
-        </View>
-      </View>
+				</View>
+			</View>
 
 			<View>
 				<Text className="text-[17px] font-normal leading-6 text-slate-900">{addressLine1}</Text>
 				<Text className="mt-1 text-[14px] leading-5 text-slate-500">{addressLine2}</Text>
 				<View className="mt-3 flex-row items-center gap-2 text-slate-500">
-          <Ionicons name="call-outline" size={14} color="#40493d" />
-          <Text className="text-[14px] text-slate-500">{phone}</Text>
-        </View>
-      </View>
+					<Ionicons name="call-outline" size={14} color="#40493d" />
+					<Text className="text-[14px] text-slate-500">{phone}</Text>
+				</View>
+			</View>
 
 			{showPrimaryButton ? (
 				<Pressable
-										onPress={onSetPrimary}
-										className="mt-4 rounded-xl border border-[#15803d] bg-white py-3 shadow-sm active:bg-slate-50"
+					onPress={onSetPrimary}
+					className="mt-4 rounded-xl border border-[#15803d] bg-white py-3 shadow-sm active:bg-slate-50"
 					accessibilityRole="button"
 					accessibilityLabel={`Set ${title} as primary`}
 				>
-										<Text className="text-center text-[13px] font-semibold text-[#15803d]">Set as Primary</Text>
+					<Text className="text-center text-[13px] font-semibold text-[#15803d]">Set as Primary</Text>
 				</Pressable>
 			) : null}
-    </View>
-  );
+		</View>
+	);
 }
 
 export default function MyAddressScreen() {
@@ -134,7 +134,7 @@ export default function MyAddressScreen() {
 		id: address.id,
 		title: address.label,
 		addressLine1: address.street,
-		addressLine2: `${address.city}${address.postalCode ? `, ${address.postalCode}` : ""}`,
+		addressLine2: `${address.district ? `${address.district}, ` : ""}${address.city}${address.postalCode ? `, ${address.postalCode}` : ""}`,
 		phone: address.phone,
 		icon:
 			address.label === "Home"
@@ -144,33 +144,33 @@ export default function MyAddressScreen() {
 					: address.label === "Parent's House"
 						? ("people" as const)
 						: ("location" as const),
-			primaryBorder: address.isPrimary,
-			primaryBadge: address.isPrimary,
-			showPrimaryButton: !address.isPrimary,
-				fullName: address.fullName,
+		primaryBorder: address.isPrimary,
+		primaryBadge: address.isPrimary,
+		showPrimaryButton: !address.isPrimary,
+		fullName: address.fullName,
 	}));
 
-		const handleDelete = (addressId: string, title: string) => {
-			setDeleteTarget({ id: addressId, title });
-		};
+	const handleDelete = (addressId: string, title: string) => {
+		setDeleteTarget({ id: addressId, title });
+	};
 
-		const confirmDelete = () => {
-			if (!deleteTarget) {
-				return;
-			}
+	const confirmDelete = () => {
+		if (!deleteTarget) {
+			return;
+		}
 
-			removeAddress(deleteTarget.id);
-			setDeleteTarget(null);
-		};
+		removeAddress(deleteTarget.id);
+		setDeleteTarget(null);
+	};
 
-		const handleSetPrimary = (addressId: string) => {
-			const selected = addresses.find((entry) => entry.id === addressId);
-			if (!selected) {
-				return;
-			}
+	const handleSetPrimary = (addressId: string) => {
+		const selected = addresses.find((entry) => entry.id === addressId);
+		if (!selected) {
+			return;
+		}
 
-			updateAddress(addressId, { ...selected, isPrimary: true });
-		};
+		updateAddress(addressId, { ...selected, isPrimary: true });
+	};
 
 	return (
 		<SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>

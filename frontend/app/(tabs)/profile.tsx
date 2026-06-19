@@ -132,7 +132,7 @@ export default function Profile() {
     <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
       <View className="flex-row items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm">
         <View className="flex-row items-center gap-3">
-          
+
           <Text className="text-[24px] ml-2 font-extrabold tracking-tight text-[#15803d]">
             MKB-Smart
           </Text>
@@ -206,14 +206,19 @@ export default function Profile() {
           </Text>
 
           <View className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <MenuRow icon="bag-handle-outline" label="My Orders" />
+            <MenuRow
+              icon="bag-handle-outline"
+              label="My Orders"
+              showDivider
+              onPress={() => router.push("/myOrders")} />
+
             <MenuRow
               icon="location-outline"
               label="My Addresses"
               showDivider
               onPress={() => router.push("/myAddress")}
             />
-            
+
           </View>
 
           <Text className="px-1 pt-2 text-[12px] font-bold uppercase tracking-wider text-slate-500">
@@ -258,7 +263,7 @@ export default function Profile() {
               <Text className="text-base font-bold text-red-600">Logout</Text>
             </Pressable>
 
-            
+
           </View>
 
           <View className="pt-2 mt-3">
@@ -271,10 +276,10 @@ export default function Profile() {
               <Text className="text-base font-bold text-red-600">Delete Account</Text>
             </Pressable>
 
-            
+
           </View>
 
-          
+
         </View>
       </ScrollView>
     </SafeAreaView>

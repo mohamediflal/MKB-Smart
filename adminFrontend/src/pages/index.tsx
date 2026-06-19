@@ -261,7 +261,7 @@ export async function addAdmin(a) {
     const res = await fetch(`${base}/api/auth/admin/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: a.name, email: a.email, password: a.password }),
+        body: JSON.stringify({ name: a.name, email: a.email, password: a.password, otp: a.otp }),
     })
     if (!res.ok) {
         const err = await res.json().catch(() => ({}))

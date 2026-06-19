@@ -6,6 +6,8 @@ import { getSession } from './pages/index'
 import Login from './pages/auth/Login'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import SignUp from './pages/auth/SignUp'
+import OtpPage from './pages/auth/OtpPage'
+import ResetPwd from './pages/auth/ResetPwd'
 import AdminDashboard from './pages/admin/Dashboard'
 import Products from './pages/common/Products'
 import Categories from './pages/common/Categories'
@@ -61,7 +63,7 @@ function SuperAdminAuthRoute() {
     <Login
       role="superadmin"
       mode="login"
-      onModeChange={() => {}}
+      onModeChange={() => { }}
       onBack={() => navigate('/')}
       onLogin={() => navigate('/superadmin/dashboard')}
     />
@@ -153,11 +155,11 @@ function AdminLayout({ children }) {
       <AdminSidebar onSignOut={() => navigate('/')} isCollapsed={!isSidebarOpen} />
 
       <div className={`transition-all duration-300 flex min-w-0 flex-1 flex-col ${isSidebarOpen ? 'ml-[260px]' : 'ml-[88px]'}`}>
-        <Navbar 
-          role="ADMIN" 
-          name={user?.name || "Alex Carter"} 
-          email={user?.email || "admin@mkbsmart.com"} 
-          avatarText={user?.initials || "AC"} 
+        <Navbar
+          role="ADMIN"
+          name={user?.name || "Alex Carter"}
+          email={user?.email || "admin@mkbsmart.com"}
+          avatarText={user?.initials || "AC"}
           onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)}
         />
         {children}
@@ -180,11 +182,11 @@ function SuperAdminLayout({ children }) {
       <SuperAdminSidebar onSignOut={() => navigate('/')} isCollapsed={!isSidebarOpen} />
 
       <div className={`transition-all duration-300 flex min-w-0 flex-1 flex-col ${isSidebarOpen ? 'ml-[260px]' : 'ml-[88px]'}`}>
-        <Navbar 
-          role="SUPER ADMIN" 
-          name={user?.name || "Ariana White"} 
-          email={user?.email || "super@mkbsmart.com"} 
-          avatarText={user?.initials || "AW"} 
+        <Navbar
+          role="SUPER ADMIN"
+          name={user?.name || "Ariana White"}
+          email={user?.email || "super@mkbsmart.com"}
+          avatarText={user?.initials || "AW"}
           onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)}
         />
         {children}
@@ -206,7 +208,9 @@ function App() {
         <Route path="/auth/admin/signup" element={<AdminSignUpRoute />} />
         <Route path="/auth/superadmin" element={<SuperAdminAuthRoute />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-        
+        <Route path="/auth/admin/otp" element={<OtpPage />} />
+        <Route path="/auth/admin/reset-password" element={<ResetPwd />} />
+
         {/* Admin Routes */}
         <Route path="/admin/*" element={
           <AdminLayout>

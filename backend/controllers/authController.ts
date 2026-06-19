@@ -3,6 +3,24 @@ import { prisma } from '../configs/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import cloudinary from '../configs/cloudinary';
+import nodemailer from 'nodemailer';
+
+const otpStore = new Map<string, { otp: string; expiresAt: number }>();
+
+const createMailTransporter = async () => {
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+        return nodemailer.createTransport({
+            host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+            port: Number(process.env.EMAIL_PORT) || 587,
+            secure: process.env.EMAIL_SECURE === 'true',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
+        });
+    }
+    return null;
+};
 
 // Generate JWT token (accepts either id string or object payload)
 const generateToken = (payload: string | object) => {
@@ -20,7 +38,7 @@ const getSuperAdmin = (email: string | null | undefined): boolean => {
 //Register for User
 //POST /api/auth/register
 export const register = async (req: Request, res: Response) => {
-    const { name, email, password, role, isAdmin } = req.body;
+    const { name, email, password, role, isAdmin, otp } = req.body;
 
     // Reject admin account creation through the public user register route.
     if (role === 'admin' || role === 'superadmin' || isAdmin === true) {
@@ -28,11 +46,11 @@ export const register = async (req: Request, res: Response) => {
     }
 
     // Validate input
-    if (!name || !email || !password) {
-        return res.status(400).json({ message: "Please provide all fields" });
+    if (!name || !email || !password || !otp) {
+        return res.status(400).json({ message: "Please provide all fields including verification OTP" });
     }
 
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.toLowerCase().trim();
 
     // Prevent user registration using super admin email
     const superAdminEmails = process.env.SUPER_ADMIN_EMAIL
@@ -43,11 +61,30 @@ export const register = async (req: Request, res: Response) => {
         return res.status(400).json({ message: 'Cannot register super admin email through user registration' });
     }
 
+    // Verify OTP first
+    const record = otpStore.get(normalizedEmail);
+    if (!record) {
+        return res.status(400).json({ message: "Verification OTP not requested or expired. Please request a new OTP." });
+    }
+
+    if (Date.now() > record.expiresAt) {
+        otpStore.delete(normalizedEmail);
+        return res.status(400).json({ message: "Verification OTP has expired. Please request a new OTP." });
+    }
+
+    if (record.otp !== otp.trim()) {
+        return res.status(400).json({ message: "Invalid verification OTP. Please check and try again." });
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
     if (existingUser) {
+        otpStore.delete(normalizedEmail);
         return res.status(400).json({ message: "Email already in use" });
     }
+
+    // OTP verified, remove it
+    otpStore.delete(normalizedEmail);
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -66,6 +103,257 @@ export const register = async (req: Request, res: Response) => {
     res.status(201).json({ message: "User created successfully", user: safeUser, token });
 
 }
+
+// Send OTP to email address for registration verification
+// POST /api/auth/send-otp
+export const sendOtp = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Check if user or admin already exists
+        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        const existingAdmin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
+        if (existingUser || existingAdmin) {
+            return res.status(400).json({ success: false, message: 'Email already in use' });
+        }
+
+        // Generate a 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
+
+        // Store OTP
+        otpStore.set(normalizedEmail, { otp, expiresAt });
+
+        console.log(`\n====================================`);
+        console.log(`[OTP VERIFICATION]`);
+        console.log(`Email: ${normalizedEmail}`);
+        console.log(`OTP Code: ${otp}`);
+        console.log(`Expires At: ${new Date(expiresAt).toLocaleTimeString()}`);
+        console.log(`====================================\n`);
+
+        // Send Email
+        const transporter = await createMailTransporter();
+        if (transporter) {
+            const mailOptions = {
+                from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+                to: normalizedEmail,
+                subject: 'MKB-SMART Registration Verification Code',
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                        <h2 style="color: #006d37; text-align: center;">MKB-SMART Verification Code</h2>
+                        <p>Thank you for signing up with MKB-SMART! Please verify your email address by entering the verification code below:</p>
+                        <div style="background-color: #f3fcf1; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                            <span style="font-size: 24px; font-weight: bold; color: #006d37; letter-spacing: 4px;">${otp}</span>
+                        </div>
+                        <p style="font-size: 12px; color: #666; text-align: center;">This code is valid for 5 minutes. If you did not request this code, please ignore this email.</p>
+                    </div>
+                `,
+            };
+
+            const info = await transporter.sendMail(mailOptions);
+
+            const previewUrl = nodemailer.getTestMessageUrl(info);
+            if (previewUrl) {
+                console.log(`[Ethereal Email Sent] Preview URL: ${previewUrl}`);
+                return res.status(200).json({
+                    success: true,
+                    message: 'OTP sent to email address.',
+                    previewUrl,
+                });
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'OTP sent successfully (please check your console logs or inbox).',
+        });
+    } catch (error: any) {
+        console.error('Send OTP Error:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    }
+};
+
+// Request password reset OTP
+// POST /api/auth/forgot-password
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email, role } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        if (role === 'admin') {
+            const admin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
+            if (!admin) {
+                return res.status(404).json({ success: false, message: 'Invalid admin email address' });
+            }
+        } else {
+            const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+            if (!user) {
+                return res.status(404).json({ success: false, message: 'Invalid user email address' });
+            }
+        }
+
+        // Generate a 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
+
+        // Store OTP
+        otpStore.set(normalizedEmail, { otp, expiresAt });
+
+        console.log(`\n====================================`);
+        console.log(`[PASSWORD RESET OTP]`);
+        console.log(`Email: ${normalizedEmail}`);
+        console.log(`OTP Code: ${otp}`);
+        console.log(`Expires At: ${new Date(expiresAt).toLocaleTimeString()}`);
+        console.log(`====================================\n`);
+
+        // Send Email
+        const transporter = await createMailTransporter();
+        if (transporter) {
+            const mailOptions = {
+                from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+                to: normalizedEmail,
+                subject: 'MKB-SMART Password Reset Verification Code',
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                        <h2 style="color: #006d37; text-align: center;">MKB-SMART Reset Code</h2>
+                        <p>You requested a password reset for your MKB-SMART account. Please use the verification code below to set a new password:</p>
+                        <div style="background-color: #f3fcf1; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                            <span style="font-size: 24px; font-weight: bold; color: #006d37; letter-spacing: 4px;">${otp}</span>
+                        </div>
+                        <p style="font-size: 12px; color: #666; text-align: center;">This code is valid for 5 minutes. If you did not request this password reset, please ignore this email.</p>
+                    </div>
+                `,
+            };
+
+            const info = await transporter.sendMail(mailOptions);
+
+            const previewUrl = nodemailer.getTestMessageUrl(info);
+            if (previewUrl) {
+                console.log(`[Ethereal Email Sent] Preview URL: ${previewUrl}`);
+                return res.status(200).json({
+                    success: true,
+                    message: 'OTP sent to email address.',
+                    previewUrl,
+                });
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'OTP sent successfully (please check your console logs or inbox).',
+        });
+    } catch (error: any) {
+        console.error('Forgot Password OTP Error:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    }
+};
+
+// Verify OTP (Generic verification for forgot password screen)
+// POST /api/auth/verify-otp
+export const verifyOtp = async (req: Request, res: Response) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        const record = otpStore.get(normalizedEmail);
+        if (!record) {
+            return res.status(400).json({ success: false, message: 'OTP has expired or has not been requested.' });
+        }
+
+        if (Date.now() > record.expiresAt) {
+            otpStore.delete(normalizedEmail);
+            return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
+        }
+
+        if (record.otp !== otp.trim()) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP. Please check and try again.' });
+        }
+
+        return res.status(200).json({ success: true, message: 'OTP verified successfully.' });
+    } catch (error: any) {
+        console.error('Verify OTP Error:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    }
+};
+
+// Reset Password
+// POST /api/auth/reset-password
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { email, otp, newPassword, role } = req.body;
+
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Verify OTP again to ensure authorization
+        const record = otpStore.get(normalizedEmail);
+        if (!record) {
+            return res.status(400).json({ success: false, message: 'Session expired. Please request a new OTP.' });
+        }
+
+        if (Date.now() > record.expiresAt) {
+            otpStore.delete(normalizedEmail);
+            return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
+        }
+
+        if (record.otp !== otp.trim()) {
+            return res.status(400).json({ success: false, message: 'Invalid OTP. Please verify again.' });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update database based on role
+        if (role === 'admin') {
+            const isAdmin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
+            if (isAdmin) {
+                await prisma.admin.update({
+                    where: { email: normalizedEmail },
+                    data: { password: hashedPassword }
+                });
+            } else {
+                return res.status(404).json({ success: false, message: 'Admin account not found.' });
+            }
+        } else {
+            const isUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+            if (isUser) {
+                await prisma.user.update({
+                    where: { email: normalizedEmail },
+                    data: { password: hashedPassword }
+                });
+            } else {
+                return res.status(404).json({ success: false, message: 'User account not found.' });
+            }
+        }
+
+        // OTP is valid and database update succeeded, clear it
+        otpStore.delete(normalizedEmail);
+
+        return res.status(200).json({ success: true, message: 'Password has been reset successfully.' });
+    } catch (error: any) {
+        console.error('Reset Password Error:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    }
+};
 
 //Login for User
 //POST /api/auth/login
@@ -240,14 +528,32 @@ export const deleteUser = async (req: Request & { userId?: string }, res: Respon
 //Register for admin
 //POST /api/auth/adminRegister
 export const adminRegister = async (req: Request, res: Response) => {
-    const { name, email, password } = req.body
+    const { name, email, password, otp } = req.body
 
     // Validate input
-    if (!name || !email || !password) {
-        return res.status(400).json({ message: 'Please provide all fields' })
+    if (!name || !email || !password || !otp) {
+        return res.status(400).json({ message: 'Please provide all fields including verification OTP' })
     }
 
-    const normalizedEmail = email.toLowerCase()
+    const normalizedEmail = email.toLowerCase().trim()
+
+    // Verify OTP first
+    const record = otpStore.get(normalizedEmail);
+    if (!record) {
+        return res.status(400).json({ message: "Verification OTP not requested or expired. Please request a new OTP." });
+    }
+
+    if (Date.now() > record.expiresAt) {
+        otpStore.delete(normalizedEmail);
+        return res.status(400).json({ message: "Verification OTP has expired. Please request a new OTP." });
+    }
+
+    if (record.otp !== otp.trim()) {
+        return res.status(400).json({ message: "Invalid verification OTP. Please check and try again." });
+    }
+
+    // OTP verified, remove it
+    otpStore.delete(normalizedEmail);
 
     // Prevent registering the super admin via this route
     const superAdminEmails = process.env.SUPER_ADMIN_EMAIL
@@ -502,15 +808,15 @@ export const updateUserStatus = async (req: Request, res: Response) => {
             data: { status: dbStatus }
         });
 
-        res.status(200).json({ 
-            success: true, 
-            message: 'User status updated successfully', 
+        res.status(200).json({
+            success: true,
+            message: 'User status updated successfully',
             user: {
                 id: updated.id,
                 name: updated.name,
                 email: updated.email,
                 status: updated.status === 'ACTIVE' ? 'Active' : 'Suspended'
-            } 
+            }
         });
     } catch (error: any) {
         console.error('Update User Status Error:', error);

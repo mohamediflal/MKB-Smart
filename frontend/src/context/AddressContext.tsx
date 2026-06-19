@@ -10,6 +10,7 @@ export type AddressEntry = {
   fullName: string;
   phone: string;
   street: string;
+  district: string;
   city: string;
   postalCode: string;
   isPrimary: boolean;
@@ -36,6 +37,7 @@ export function AddressProvider({ children }: { children: React.ReactNode }) {
     fullName: dbAddress.fullName,
     phone: dbAddress.phone || "",
     street: dbAddress.address,      // DB uses "address", we use "street"
+    district: dbAddress.district || "",
     city: dbAddress.city,
     postalCode: dbAddress.zip,      // DB uses "zip", we use "postalCode"
     isPrimary: dbAddress.isDefault, // DB uses "isDefault", we use "isPrimary"
@@ -108,6 +110,7 @@ export function AddressProvider({ children }: { children: React.ReactNode }) {
           label: address.label,
           phone: address.phone,
           street: address.street,
+          district: address.district,
           city: address.city,
           postalCode: address.postalCode,
           isPrimary: address.isPrimary,
@@ -168,6 +171,7 @@ export function AddressProvider({ children }: { children: React.ReactNode }) {
           label: address.label,
           phone: address.phone,
           street: address.street,
+          district: address.district,
           city: address.city,
           postalCode: address.postalCode,
           isPrimary: address.isPrimary,
