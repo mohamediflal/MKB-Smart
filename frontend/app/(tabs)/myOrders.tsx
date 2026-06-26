@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { useAuth, API_BASE_URL } from "@/context/AuthContext";
 
@@ -116,6 +116,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function MyOrdersScreen() {
 	const router = useRouter();
+	const { orderId } = useLocalSearchParams<{ orderId?: string }>();
 	const { user } = useAuth();
 	const [orders, setOrders] = useState<OrderRecord[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -123,12 +124,26 @@ export default function MyOrdersScreen() {
 	const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
 	const [currentTime, setCurrentTime] = useState(Date.now());
 
+	const handleCloseModal = () => {
+		setSelectedOrder(null);
+		router.setParams({ orderId: "" });
+	};
+
 	useEffect(() => {
 		const interval = setInterval(() => {
 			setCurrentTime(Date.now());
 		}, 1000);
 		return () => clearInterval(interval);
 	}, []);
+
+	useEffect(() => {
+		if (orderId && orders.length > 0) {
+			const found = orders.find(o => o.id === orderId);
+			if (found) {
+				setSelectedOrder(found);
+			}
+		}
+	}, [orderId, orders]);
 
 	const isOrderCancellable = (order: OrderRecord) => {
 		if (order.status !== "Pending") return false;
@@ -194,7 +209,7 @@ export default function MyOrdersScreen() {
 							if (res.ok && data.success) {
 								Alert.alert("Order Cancelled", "Your order has been successfully cancelled.");
 								fetchOrders();
-								setSelectedOrder(null);
+								handleCloseModal();
 							} else {
 								Alert.alert("Error", data.message || "Failed to cancel order.");
 							}
@@ -378,7 +393,7 @@ export default function MyOrdersScreen() {
 				visible={Boolean(selectedOrder)}
 				transparent
 				animationType="slide"
-				onRequestClose={() => setSelectedOrder(null)}
+				onRequestClose={handleCloseModal}
 			>
 				<View className="flex-1 justify-end bg-black/55">
 					<View className="bg-white rounded-t-[32px] px-5 pb-8 pt-5 max-h-[85%] border-t border-slate-100 shadow-2xl">
@@ -394,7 +409,7 @@ export default function MyOrdersScreen() {
 								</Text>
 							</View>
 							<Pressable
-								onPress={() => setSelectedOrder(null)}
+								onPress={handleCloseModal}
 								className="h-8 w-8 items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
 							>
 								<Ionicons name="close" size={20} color="#475569" />

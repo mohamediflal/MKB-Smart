@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { Plus, Search, Eye, Pencil, Trash2, X, Upload, UploadCloud } from "lucide-react";
 import { Card, PageHeader, getSession } from "../index";
 import AddProduct from "./AddProduct";
@@ -393,6 +393,8 @@ export default function Products() {
   const { pathname } = useLocation();
   const isSuperAdmin = pathname.startsWith("/superadmin");
   const prefix = isSuperAdmin ? "/superadmin" : "/admin";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const productIdParam = searchParams.get("productId");
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All categories");
 
@@ -405,6 +407,15 @@ export default function Products() {
 
   const [dbCategories, setDbCategories] = useState([]);
   const [dropdownProductId, setDropdownProductId] = useState(null);
+
+  const closeEditModal = () => {
+    setEditingProduct(null);
+    if (searchParams.has("productId")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("productId");
+      setSearchParams(newParams);
+    }
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -446,6 +457,15 @@ export default function Products() {
     fetchCategories();
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (productIdParam && productList.length > 0) {
+      const found = productList.find((p: any) => p.id === productIdParam);
+      if (found) {
+        setEditingProduct(found);
+      }
+    }
+  }, [productIdParam, productList]);
 
   const cats = useMemo(() => ["All categories", ...dbCategories.map((c) => c.name)], [dbCategories]);
 
@@ -542,7 +562,7 @@ export default function Products() {
       {editingProduct && (
         <EditProductModal
           product={editingProduct}
-          onClose={() => setEditingProduct(null)}
+          onClose={closeEditModal}
           onSave={handleUpdateProduct}
           categories={dbCategories}
         />

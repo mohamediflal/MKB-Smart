@@ -8,6 +8,7 @@ import orderRouter from './routes/orderRoute.js';
 import addressRouter from './routes/addressRoute.js';
 import categoryRouter from './routes/categoryRoute.js';
 import favoriteRouter from './routes/favoriteRoute.js';
+import notificationRouter from './routes/notificationRoute.js';
 // TODO: uncomment once uploadRoute.ts is created
 // import uploadRouter from './routes/uploadRoute.js';
 
@@ -28,6 +29,7 @@ app.use('/api/orders', orderRouter);
 app.use('/api/address', addressRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/favorites', favoriteRouter);
+app.use('/api/notifications', notificationRouter);
 
 
 //Error handling

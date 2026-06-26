@@ -391,7 +391,9 @@ export const ModelName = {
   Product: 'Product',
   Favorite: 'Favorite',
   Order: 'Order',
-  Notification: 'Notification'
+  Notification: 'Notification',
+  UserDeviceToken: 'UserDeviceToken',
+  AdminDeviceToken: 'AdminDeviceToken'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -407,7 +409,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "admin" | "category" | "address" | "product" | "favorite" | "order" | "notification"
+    modelProps: "user" | "admin" | "category" | "address" | "product" | "favorite" | "order" | "notification" | "userDeviceToken" | "adminDeviceToken"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1003,6 +1005,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    UserDeviceToken: {
+      payload: Prisma.$UserDeviceTokenPayload<ExtArgs>
+      fields: Prisma.UserDeviceTokenFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.UserDeviceTokenFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.UserDeviceTokenFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>
+        }
+        findFirst: {
+          args: Prisma.UserDeviceTokenFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.UserDeviceTokenFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>
+        }
+        findMany: {
+          args: Prisma.UserDeviceTokenFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>[]
+        }
+        create: {
+          args: Prisma.UserDeviceTokenCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>
+        }
+        createMany: {
+          args: Prisma.UserDeviceTokenCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.UserDeviceTokenCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>[]
+        }
+        delete: {
+          args: Prisma.UserDeviceTokenDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>
+        }
+        update: {
+          args: Prisma.UserDeviceTokenUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>
+        }
+        deleteMany: {
+          args: Prisma.UserDeviceTokenDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.UserDeviceTokenUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.UserDeviceTokenUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>[]
+        }
+        upsert: {
+          args: Prisma.UserDeviceTokenUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserDeviceTokenPayload>
+        }
+        aggregate: {
+          args: Prisma.UserDeviceTokenAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateUserDeviceToken>
+        }
+        groupBy: {
+          args: Prisma.UserDeviceTokenGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserDeviceTokenGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.UserDeviceTokenCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserDeviceTokenCountAggregateOutputType> | number
+        }
+      }
+    }
+    AdminDeviceToken: {
+      payload: Prisma.$AdminDeviceTokenPayload<ExtArgs>
+      fields: Prisma.AdminDeviceTokenFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AdminDeviceTokenFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AdminDeviceTokenFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>
+        }
+        findFirst: {
+          args: Prisma.AdminDeviceTokenFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AdminDeviceTokenFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>
+        }
+        findMany: {
+          args: Prisma.AdminDeviceTokenFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>[]
+        }
+        create: {
+          args: Prisma.AdminDeviceTokenCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>
+        }
+        createMany: {
+          args: Prisma.AdminDeviceTokenCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AdminDeviceTokenCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>[]
+        }
+        delete: {
+          args: Prisma.AdminDeviceTokenDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>
+        }
+        update: {
+          args: Prisma.AdminDeviceTokenUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>
+        }
+        deleteMany: {
+          args: Prisma.AdminDeviceTokenDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AdminDeviceTokenUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AdminDeviceTokenUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>[]
+        }
+        upsert: {
+          args: Prisma.AdminDeviceTokenUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminDeviceTokenPayload>
+        }
+        aggregate: {
+          args: Prisma.AdminDeviceTokenAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAdminDeviceToken>
+        }
+        groupBy: {
+          args: Prisma.AdminDeviceTokenGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AdminDeviceTokenGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AdminDeviceTokenCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AdminDeviceTokenCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1161,6 +1311,7 @@ export const NotificationScalarFieldEnum = {
   userId: 'userId',
   adminId: 'adminId',
   orderId: 'orderId',
+  productId: 'productId',
   isRead: 'isRead',
   isDeleted: 'isDeleted',
   createdAt: 'createdAt',
@@ -1168,6 +1319,30 @@ export const NotificationScalarFieldEnum = {
 } as const
 
 export type NotificationScalarFieldEnum = (typeof NotificationScalarFieldEnum)[keyof typeof NotificationScalarFieldEnum]
+
+
+export const UserDeviceTokenScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  token: 'token',
+  role: 'role',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserDeviceTokenScalarFieldEnum = (typeof UserDeviceTokenScalarFieldEnum)[keyof typeof UserDeviceTokenScalarFieldEnum]
+
+
+export const AdminDeviceTokenScalarFieldEnum = {
+  id: 'id',
+  adminId: 'adminId',
+  token: 'token',
+  role: 'role',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AdminDeviceTokenScalarFieldEnum = (typeof AdminDeviceTokenScalarFieldEnum)[keyof typeof AdminDeviceTokenScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1522,6 +1697,8 @@ export type GlobalOmitConfig = {
   favorite?: Prisma.FavoriteOmit
   order?: Prisma.OrderOmit
   notification?: Prisma.NotificationOmit
+  userDeviceToken?: Prisma.UserDeviceTokenOmit
+  adminDeviceToken?: Prisma.AdminDeviceTokenOmit
 }
 
 /* Types for Logging */
