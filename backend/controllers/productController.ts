@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma.js';
 import cloudinary from '../configs/cloudinary.js';
+import { checkAndNotifyStock } from '../services/notificationService.js';
 
 // Helper to upload file buffer to Cloudinary via data URI
 const uploadToCloudinary = async (file: { buffer: Buffer; mimetype: string }): Promise<string> => {
@@ -55,6 +56,8 @@ export const addProduct = async (req: Request, res: Response) => {
         category: true
       }
     });
+
+    await checkAndNotifyStock(product.id);
 
     return res.status(201).json({
       success: true,
@@ -130,6 +133,8 @@ export const updateProduct = async (req: Request, res: Response) => {
         category: true
       }
     });
+
+    await checkAndNotifyStock(updated.id);
 
     return res.status(200).json({
       success: true,

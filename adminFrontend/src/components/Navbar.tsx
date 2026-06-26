@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react'
 import { X, Check } from 'lucide-react'
+import NotificationMenu from './NotificationMenue'
+import { getSession } from '../pages/index'
 
 // ─── Theme Configuration (merged from utils/theme.js) ───
 
@@ -247,6 +249,120 @@ function Navbar({
   onSearch,
 }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+
+  const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+
+  const fetchNotifications = async () => {
+    const session = getSession()
+    if (!session || !session.token) return
+
+    try {
+      const res = await fetch(`${base}/api/notifications`, {
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) {
+          setNotifications(data.notifications || [])
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err)
+    }
+  }
+
+  const handleMarkAsRead = async (id) => {
+    const session = getSession()
+    if (!session || !session.token) return
+
+    try {
+      const res = await fetch(`${base}/api/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      })
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        )
+      }
+    } catch (err) {
+      console.error('Error marking notification as read:', err)
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    const session = getSession()
+    if (!session || !session.token) return
+
+    try {
+      const res = await fetch(`${base}/api/notifications/read-all`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      })
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => ({ ...n, isRead: true }))
+        )
+      }
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err)
+    }
+  }
+
+  const handleDeleteNotification = async (id) => {
+    const session = getSession()
+    if (!session || !session.token) return
+
+    try {
+      const res = await fetch(`${base}/api/notifications/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        }
+      })
+      if (res.ok) {
+        setNotifications((prev) => prev.filter((n) => n.id !== id))
+      }
+    } catch (err) {
+      console.error('Error deleting notification:', err)
+    }
+  }
+
+  const registerAdminPushToken = async () => {
+    const session = getSession()
+    if (!session || !session.token) return
+
+    try {
+      const mockAdminToken = `mock-fcm-admin-token-${session.isSuperAdmin ? 'super' : 'admin'}-${session.email}`
+      await fetch(`${base}/api/notifications/save-admin-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.token}`
+        },
+        body: JSON.stringify({ token: mockAdminToken })
+      })
+    } catch (err) {
+      console.error('Error registering admin push token:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchNotifications()
+    registerAdminPushToken()
+    const interval = setInterval(fetchNotifications, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length
 
   return (
     <>
@@ -309,22 +425,38 @@ function Navbar({
           </button>
 
           {/* Bell */}
-          <button
-            type="button"
-            className="relative inline-flex h-10 w-10 items-center justify-center text-foreground hover:text-foreground cursor-pointer"
-            aria-label="Notifications"
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
-              <path
-                d="M15 17H9m9-1v-4.2A6 6 0 0 0 12 6a6 6 0 0 0-6 5.8V16l-1.6 2.3A1 1 0 0 0 5.2 20h13.6a1 1 0 0 0 .8-1.7L18 16Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="absolute right-[9px] top-[9px] h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+              className="relative inline-flex h-10 w-10 items-center justify-center text-foreground hover:text-foreground cursor-pointer"
+              aria-label="Notifications"
+            >
+              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+                <path
+                  d="M15 17H9m9-1v-4.2A6 6 0 0 0 12 6a6 6 0 0 0-6 5.8V16l-1.6 2.3A1 1 0 0 0 5.2 20h13.6a1 1 0 0 0 .8-1.7L18 16Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {unreadCount > 0 && (
+                <span className="absolute right-[2px] top-[2px] flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground ring-2 ring-card animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            <NotificationMenu
+              isOpen={isNotificationOpen}
+              onClose={() => setIsNotificationOpen(false)}
+              notifications={notifications}
+              onMarkAsRead={handleMarkAsRead}
+              onMarkAllAsRead={handleMarkAllAsRead}
+              onDelete={handleDeleteNotification}
+            />
+          </div>
 
           {/* Avatar + name + chevron */}
           <button type="button" className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-muted cursor-pointer transition-all duration-200">

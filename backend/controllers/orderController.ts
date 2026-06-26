@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma.js';
+import { handleOrderStatusChange } from '../services/notificationService.js';
 
 // Helper to map DB order to client format
 const formatOrder = (order: any) => {
@@ -101,6 +102,20 @@ export const placeOrder = async (req: Request & { userId?: string }, res: Respon
       }
     });
 
+    // Delay notifications by 1 minute (Pending status duration)
+    setTimeout(async () => {
+      try {
+        const currentOrder = await prisma.order.findUnique({
+          where: { id: order.id }
+        });
+        if (currentOrder && currentOrder.status === 'PLACED') {
+          await handleOrderStatusChange(order.id, 'PLACED');
+        }
+      } catch (err) {
+        console.error('Error in delayed notification trigger:', err);
+      }
+    }, 60000);
+
     return res.status(201).json({ success: true, message: 'Order placed successfully', order: formatOrder(order) });
   } catch (error: any) {
     console.error('Place Order Error:', error);
@@ -138,6 +153,20 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
         isPaid: true
       }
     });
+
+    // Delay notifications by 1 minute (Pending status duration)
+    setTimeout(async () => {
+      try {
+        const currentOrder = await prisma.order.findUnique({
+          where: { id: order.id }
+        });
+        if (currentOrder && currentOrder.status === 'PLACED') {
+          await handleOrderStatusChange(order.id, 'PLACED');
+        }
+      } catch (err) {
+        console.error('Error in delayed notification trigger:', err);
+      }
+    }, 60000);
 
     return res.status(201).json({ success: true, message: 'Order placed successfully', order: formatOrder(order) });
   } catch (error: any) {
@@ -263,6 +292,8 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
         statusHistory: updatedHistory
       }
     });
+
+    await handleOrderStatusChange(orderId, dbStatus);
 
     return res.status(200).json({ success: true, message: 'Order status updated successfully', order: formatOrder(updated) });
   } catch (error: any) {

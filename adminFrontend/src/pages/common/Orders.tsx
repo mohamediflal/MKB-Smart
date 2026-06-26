@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Eye, Search, Pencil, Trash2, Printer, X, Check, CheckCircle2 } from "lucide-react";
 import { Card, PageHeader, statusColor, products, getSession } from "../index";
 import { jsPDF } from "jspdf";
@@ -206,6 +207,8 @@ function downloadInvoicePDF(order, items) {
 const STATUSES = ["All", "Pending", "Placed", "Processing", "Shipped", "Delivered", "Cancelled"];
 
 export default function Orders() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const orderIdParam = searchParams.get("orderId");
   const [ordersList, setOrdersList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -213,6 +216,15 @@ export default function Orders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+
+  const closeDetails = () => {
+    setSelectedOrder(null);
+    if (searchParams.has("orderId")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("orderId");
+      setSearchParams(newParams);
+    }
+  };
 
   const fetchOrders = async () => {
     const session = getSession();
@@ -256,6 +268,15 @@ export default function Orders() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  useEffect(() => {
+    if (orderIdParam && ordersList.length > 0) {
+      const found = ordersList.find(o => o.id === orderIdParam);
+      if (found) {
+        setSelectedOrder(found);
+      }
+    }
+  }, [orderIdParam, ordersList]);
 
   const handleStatusChange = async (orderId, newStatus) => {
     if (newStatus === "Cancelled") {
@@ -547,7 +568,7 @@ export default function Orders() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
           style={{ backgroundColor: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(4px)" }}
-          onClick={() => setSelectedOrder(null)}
+          onClick={closeDetails}
         >
           <div
             className="bg-white dark:bg-slate-900 rounded-[28px] shadow-2xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
@@ -564,7 +585,7 @@ export default function Orders() {
                 </span>
               </div>
               <button
-                onClick={() => setSelectedOrder(null)}
+                onClick={closeDetails}
                 className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
               >
                 <X size={20} />

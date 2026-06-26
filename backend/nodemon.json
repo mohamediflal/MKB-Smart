@@ -1,5 +1,5 @@
 {
-  "watch": ["server.ts", "routes/", "controllers/", "configs/", "middleware/"],
+  "watch": ["server.ts", "routes/", "controllers/", "configs/", "middleware/", "services/"],
   "ext": "ts,json",
   "execMap": {
     "ts": "tsx"

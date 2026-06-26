@@ -207,6 +207,7 @@ export type AdminWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
   notifications?: Prisma.NotificationListRelationFilter
+  deviceTokens?: Prisma.AdminDeviceTokenListRelationFilter
 }
 
 export type AdminOrderByWithRelationInput = {
@@ -219,6 +220,7 @@ export type AdminOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   notifications?: Prisma.NotificationOrderByRelationAggregateInput
+  deviceTokens?: Prisma.AdminDeviceTokenOrderByRelationAggregateInput
 }
 
 export type AdminWhereUniqueInput = Prisma.AtLeast<{
@@ -234,6 +236,7 @@ export type AdminWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
   notifications?: Prisma.NotificationListRelationFilter
+  deviceTokens?: Prisma.AdminDeviceTokenListRelationFilter
 }, "id" | "email">
 
 export type AdminOrderByWithAggregationInput = {
@@ -274,6 +277,7 @@ export type AdminCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   notifications?: Prisma.NotificationCreateNestedManyWithoutAdminInput
+  deviceTokens?: Prisma.AdminDeviceTokenCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUncheckedCreateInput = {
@@ -286,6 +290,7 @@ export type AdminUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   notifications?: Prisma.NotificationUncheckedCreateNestedManyWithoutAdminInput
+  deviceTokens?: Prisma.AdminDeviceTokenUncheckedCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUpdateInput = {
@@ -298,6 +303,7 @@ export type AdminUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifications?: Prisma.NotificationUpdateManyWithoutAdminNestedInput
+  deviceTokens?: Prisma.AdminDeviceTokenUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUncheckedUpdateInput = {
@@ -310,6 +316,7 @@ export type AdminUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   notifications?: Prisma.NotificationUncheckedUpdateManyWithoutAdminNestedInput
+  deviceTokens?: Prisma.AdminDeviceTokenUncheckedUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminCreateManyInput = {
@@ -383,6 +390,11 @@ export type AdminNullableScalarRelationFilter = {
   isNot?: Prisma.AdminWhereInput | null
 }
 
+export type AdminScalarRelationFilter = {
+  is?: Prisma.AdminWhereInput
+  isNot?: Prisma.AdminWhereInput
+}
+
 export type EnumAdminRoleFieldUpdateOperationsInput = {
   set?: $Enums.AdminRole
 }
@@ -407,6 +419,20 @@ export type AdminUpdateOneWithoutNotificationsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUpdateToOneWithWhereWithoutNotificationsInput, Prisma.AdminUpdateWithoutNotificationsInput>, Prisma.AdminUncheckedUpdateWithoutNotificationsInput>
 }
 
+export type AdminCreateNestedOneWithoutDeviceTokensInput = {
+  create?: Prisma.XOR<Prisma.AdminCreateWithoutDeviceTokensInput, Prisma.AdminUncheckedCreateWithoutDeviceTokensInput>
+  connectOrCreate?: Prisma.AdminCreateOrConnectWithoutDeviceTokensInput
+  connect?: Prisma.AdminWhereUniqueInput
+}
+
+export type AdminUpdateOneRequiredWithoutDeviceTokensNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminCreateWithoutDeviceTokensInput, Prisma.AdminUncheckedCreateWithoutDeviceTokensInput>
+  connectOrCreate?: Prisma.AdminCreateOrConnectWithoutDeviceTokensInput
+  upsert?: Prisma.AdminUpsertWithoutDeviceTokensInput
+  connect?: Prisma.AdminWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUpdateToOneWithWhereWithoutDeviceTokensInput, Prisma.AdminUpdateWithoutDeviceTokensInput>, Prisma.AdminUncheckedUpdateWithoutDeviceTokensInput>
+}
+
 export type AdminCreateWithoutNotificationsInput = {
   id?: string
   name: string
@@ -416,6 +442,7 @@ export type AdminCreateWithoutNotificationsInput = {
   status?: $Enums.AdminStatus
   createdAt?: Date | string
   updatedAt?: Date | string
+  deviceTokens?: Prisma.AdminDeviceTokenCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUncheckedCreateWithoutNotificationsInput = {
@@ -427,6 +454,7 @@ export type AdminUncheckedCreateWithoutNotificationsInput = {
   status?: $Enums.AdminStatus
   createdAt?: Date | string
   updatedAt?: Date | string
+  deviceTokens?: Prisma.AdminDeviceTokenUncheckedCreateNestedManyWithoutAdminInput
 }
 
 export type AdminCreateOrConnectWithoutNotificationsInput = {
@@ -454,6 +482,7 @@ export type AdminUpdateWithoutNotificationsInput = {
   status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deviceTokens?: Prisma.AdminDeviceTokenUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUncheckedUpdateWithoutNotificationsInput = {
@@ -465,6 +494,71 @@ export type AdminUncheckedUpdateWithoutNotificationsInput = {
   status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deviceTokens?: Prisma.AdminDeviceTokenUncheckedUpdateManyWithoutAdminNestedInput
+}
+
+export type AdminCreateWithoutDeviceTokensInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: $Enums.AdminRole
+  status?: $Enums.AdminStatus
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  notifications?: Prisma.NotificationCreateNestedManyWithoutAdminInput
+}
+
+export type AdminUncheckedCreateWithoutDeviceTokensInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: $Enums.AdminRole
+  status?: $Enums.AdminStatus
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  notifications?: Prisma.NotificationUncheckedCreateNestedManyWithoutAdminInput
+}
+
+export type AdminCreateOrConnectWithoutDeviceTokensInput = {
+  where: Prisma.AdminWhereUniqueInput
+  create: Prisma.XOR<Prisma.AdminCreateWithoutDeviceTokensInput, Prisma.AdminUncheckedCreateWithoutDeviceTokensInput>
+}
+
+export type AdminUpsertWithoutDeviceTokensInput = {
+  update: Prisma.XOR<Prisma.AdminUpdateWithoutDeviceTokensInput, Prisma.AdminUncheckedUpdateWithoutDeviceTokensInput>
+  create: Prisma.XOR<Prisma.AdminCreateWithoutDeviceTokensInput, Prisma.AdminUncheckedCreateWithoutDeviceTokensInput>
+  where?: Prisma.AdminWhereInput
+}
+
+export type AdminUpdateToOneWithWhereWithoutDeviceTokensInput = {
+  where?: Prisma.AdminWhereInput
+  data: Prisma.XOR<Prisma.AdminUpdateWithoutDeviceTokensInput, Prisma.AdminUncheckedUpdateWithoutDeviceTokensInput>
+}
+
+export type AdminUpdateWithoutDeviceTokensInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
+  status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  notifications?: Prisma.NotificationUpdateManyWithoutAdminNestedInput
+}
+
+export type AdminUncheckedUpdateWithoutDeviceTokensInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
+  status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  notifications?: Prisma.NotificationUncheckedUpdateManyWithoutAdminNestedInput
 }
 
 
@@ -474,10 +568,12 @@ export type AdminUncheckedUpdateWithoutNotificationsInput = {
 
 export type AdminCountOutputType = {
   notifications: number
+  deviceTokens: number
 }
 
 export type AdminCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   notifications?: boolean | AdminCountOutputTypeCountNotificationsArgs
+  deviceTokens?: boolean | AdminCountOutputTypeCountDeviceTokensArgs
 }
 
 /**
@@ -497,6 +593,13 @@ export type AdminCountOutputTypeCountNotificationsArgs<ExtArgs extends runtime.T
   where?: Prisma.NotificationWhereInput
 }
 
+/**
+ * AdminCountOutputType without action
+ */
+export type AdminCountOutputTypeCountDeviceTokensArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AdminDeviceTokenWhereInput
+}
+
 
 export type AdminSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -508,6 +611,7 @@ export type AdminSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   createdAt?: boolean
   updatedAt?: boolean
   notifications?: boolean | Prisma.Admin$notificationsArgs<ExtArgs>
+  deviceTokens?: boolean | Prisma.Admin$deviceTokensArgs<ExtArgs>
   _count?: boolean | Prisma.AdminCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["admin"]>
 
@@ -547,6 +651,7 @@ export type AdminSelectScalar = {
 export type AdminOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "password" | "role" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["admin"]>
 export type AdminInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   notifications?: boolean | Prisma.Admin$notificationsArgs<ExtArgs>
+  deviceTokens?: boolean | Prisma.Admin$deviceTokensArgs<ExtArgs>
   _count?: boolean | Prisma.AdminCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type AdminIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -556,6 +661,7 @@ export type $AdminPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   name: "Admin"
   objects: {
     notifications: Prisma.$NotificationPayload<ExtArgs>[]
+    deviceTokens: Prisma.$AdminDeviceTokenPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -961,6 +1067,7 @@ readonly fields: AdminFieldRefs;
 export interface Prisma__AdminClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   notifications<T extends Prisma.Admin$notificationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Admin$notificationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$NotificationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  deviceTokens<T extends Prisma.Admin$deviceTokensArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Admin$deviceTokensArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminDeviceTokenPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1412,6 +1519,30 @@ export type Admin$notificationsArgs<ExtArgs extends runtime.Types.Extensions.Int
   take?: number
   skip?: number
   distinct?: Prisma.NotificationScalarFieldEnum | Prisma.NotificationScalarFieldEnum[]
+}
+
+/**
+ * Admin.deviceTokens
+ */
+export type Admin$deviceTokensArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AdminDeviceToken
+   */
+  select?: Prisma.AdminDeviceTokenSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AdminDeviceToken
+   */
+  omit?: Prisma.AdminDeviceTokenOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminDeviceTokenInclude<ExtArgs> | null
+  where?: Prisma.AdminDeviceTokenWhereInput
+  orderBy?: Prisma.AdminDeviceTokenOrderByWithRelationInput | Prisma.AdminDeviceTokenOrderByWithRelationInput[]
+  cursor?: Prisma.AdminDeviceTokenWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AdminDeviceTokenScalarFieldEnum | Prisma.AdminDeviceTokenScalarFieldEnum[]
 }
 
 /**
