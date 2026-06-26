@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
+import { registerForPushNotificationsAsync } from "../utils/pushNotifications";
 
 type UserProfile = {
   id?: string;
@@ -76,6 +77,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+
+  useEffect(() => {
+    if (user && user.id && user.token) {
+      registerForPushNotificationsAsync(user.id, user.token, API_BASE_URL);
+    }
+  }, [user]);
 
   useEffect(() => {
     let mounted = true;

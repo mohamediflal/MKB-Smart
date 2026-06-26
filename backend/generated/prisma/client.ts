@@ -81,3 +81,13 @@ export type Order = Prisma.OrderModel
  * 
  */
 export type Notification = Prisma.NotificationModel
+/**
+ * Model UserDeviceToken
+ * 
+ */
+export type UserDeviceToken = Prisma.UserDeviceTokenModel
+/**
+ * Model AdminDeviceToken
+ * 
+ */
+export type AdminDeviceToken = Prisma.AdminDeviceTokenModel

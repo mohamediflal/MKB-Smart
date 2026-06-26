@@ -30,17 +30,12 @@ enum ProductStatus {
 
 enum NotificationType {
   NEW_ORDER
-  ORDER_CONFIRMED
   ORDER_PROCESSING
   ORDER_SHIPPED
   ORDER_DELIVERED
-  ORDER_CANCELLED
   LOW_STOCK
   OUT_OF_STOCK
   ADMIN_APPROVAL
-  ADMIN_PROMOTED
-  ADMIN_DEMOTED
-  ADMIN_APPROVED
 }
 
 enum PaymentMethod {
@@ -76,6 +71,7 @@ model User {
 
   favorites Favorite[]
   notifications Notification[]
+  deviceTokens UserDeviceToken[]
 
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -91,6 +87,7 @@ model Admin {
   status    AdminStatus  @default(PENDING)
 
   notifications Notification[]
+  deviceTokens AdminDeviceToken[]
 
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -153,6 +150,7 @@ model Product {
   reviewCount   Int?        @default(0)
 
   favorites     Favorite[]
+  notifications Notification[]
 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -209,9 +207,10 @@ model Notification {
 
   // Separate FKs for each targe
 
-userId      String?
+  userId      String?
   adminId     String?
   orderId     String?
+  productId   String?
 
   isRead      Boolean           @default(false)
   isDeleted   Boolean           @default(false)
@@ -220,6 +219,7 @@ userId      String?
   user        User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
   admin       Admin?            @relation(fields: [adminId], references: [id], onDelete: Cascade)
   order       Order?            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime          @default(now())
   readAt      DateTime?
@@ -227,5 +227,32 @@ userId      String?
   @@index([userId])
   @@index([adminId])
   @@index([orderId])
+  @@index([productId])
   @@index([target, isRead])
+}
+
+model UserDeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AdminDeviceToken {
+  id        String   @id @default(uuid())
+  adminId   String
+  token     String   @unique
+  role      AdminRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
 }

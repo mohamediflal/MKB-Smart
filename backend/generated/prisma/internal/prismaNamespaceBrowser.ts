@@ -58,7 +58,9 @@ export const ModelName = {
   Product: 'Product',
   Favorite: 'Favorite',
   Order: 'Order',
-  Notification: 'Notification'
+  Notification: 'Notification',
+  UserDeviceToken: 'UserDeviceToken',
+  AdminDeviceToken: 'AdminDeviceToken'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -196,6 +198,7 @@ export const NotificationScalarFieldEnum = {
   userId: 'userId',
   adminId: 'adminId',
   orderId: 'orderId',
+  productId: 'productId',
   isRead: 'isRead',
   isDeleted: 'isDeleted',
   createdAt: 'createdAt',
@@ -203,6 +206,30 @@ export const NotificationScalarFieldEnum = {
 } as const
 
 export type NotificationScalarFieldEnum = (typeof NotificationScalarFieldEnum)[keyof typeof NotificationScalarFieldEnum]
+
+
+export const UserDeviceTokenScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  token: 'token',
+  role: 'role',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserDeviceTokenScalarFieldEnum = (typeof UserDeviceTokenScalarFieldEnum)[keyof typeof UserDeviceTokenScalarFieldEnum]
+
+
+export const AdminDeviceTokenScalarFieldEnum = {
+  id: 'id',
+  adminId: 'adminId',
+  token: 'token',
+  role: 'role',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AdminDeviceTokenScalarFieldEnum = (typeof AdminDeviceTokenScalarFieldEnum)[keyof typeof AdminDeviceTokenScalarFieldEnum]
 
 
 export const SortOrder = {
