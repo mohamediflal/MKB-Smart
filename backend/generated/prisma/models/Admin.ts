@@ -29,6 +29,7 @@ export type AdminMinAggregateOutputType = {
   name: string | null
   email: string | null
   password: string | null
+  role: $Enums.AdminRole | null
   status: $Enums.AdminStatus | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -39,6 +40,7 @@ export type AdminMaxAggregateOutputType = {
   name: string | null
   email: string | null
   password: string | null
+  role: $Enums.AdminRole | null
   status: $Enums.AdminStatus | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -49,6 +51,7 @@ export type AdminCountAggregateOutputType = {
   name: number
   email: number
   password: number
+  role: number
   status: number
   createdAt: number
   updatedAt: number
@@ -61,6 +64,7 @@ export type AdminMinAggregateInputType = {
   name?: true
   email?: true
   password?: true
+  role?: true
   status?: true
   createdAt?: true
   updatedAt?: true
@@ -71,6 +75,7 @@ export type AdminMaxAggregateInputType = {
   name?: true
   email?: true
   password?: true
+  role?: true
   status?: true
   createdAt?: true
   updatedAt?: true
@@ -81,6 +86,7 @@ export type AdminCountAggregateInputType = {
   name?: true
   email?: true
   password?: true
+  role?: true
   status?: true
   createdAt?: true
   updatedAt?: true
@@ -164,6 +170,7 @@ export type AdminGroupByOutputType = {
   name: string
   email: string
   password: string
+  role: $Enums.AdminRole
   status: $Enums.AdminStatus
   createdAt: Date
   updatedAt: Date
@@ -195,9 +202,11 @@ export type AdminWhereInput = {
   name?: Prisma.StringFilter<"Admin"> | string
   email?: Prisma.StringFilter<"Admin"> | string
   password?: Prisma.StringFilter<"Admin"> | string
+  role?: Prisma.EnumAdminRoleFilter<"Admin"> | $Enums.AdminRole
   status?: Prisma.EnumAdminStatusFilter<"Admin"> | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
+  notifications?: Prisma.NotificationListRelationFilter
 }
 
 export type AdminOrderByWithRelationInput = {
@@ -205,9 +214,11 @@ export type AdminOrderByWithRelationInput = {
   name?: Prisma.SortOrder
   email?: Prisma.SortOrder
   password?: Prisma.SortOrder
+  role?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  notifications?: Prisma.NotificationOrderByRelationAggregateInput
 }
 
 export type AdminWhereUniqueInput = Prisma.AtLeast<{
@@ -218,9 +229,11 @@ export type AdminWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.AdminWhereInput | Prisma.AdminWhereInput[]
   name?: Prisma.StringFilter<"Admin"> | string
   password?: Prisma.StringFilter<"Admin"> | string
+  role?: Prisma.EnumAdminRoleFilter<"Admin"> | $Enums.AdminRole
   status?: Prisma.EnumAdminStatusFilter<"Admin"> | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Admin"> | Date | string
+  notifications?: Prisma.NotificationListRelationFilter
 }, "id" | "email">
 
 export type AdminOrderByWithAggregationInput = {
@@ -228,6 +241,7 @@ export type AdminOrderByWithAggregationInput = {
   name?: Prisma.SortOrder
   email?: Prisma.SortOrder
   password?: Prisma.SortOrder
+  role?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -244,6 +258,7 @@ export type AdminScalarWhereWithAggregatesInput = {
   name?: Prisma.StringWithAggregatesFilter<"Admin"> | string
   email?: Prisma.StringWithAggregatesFilter<"Admin"> | string
   password?: Prisma.StringWithAggregatesFilter<"Admin"> | string
+  role?: Prisma.EnumAdminRoleWithAggregatesFilter<"Admin"> | $Enums.AdminRole
   status?: Prisma.EnumAdminStatusWithAggregatesFilter<"Admin"> | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Admin"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Admin"> | Date | string
@@ -254,9 +269,11 @@ export type AdminCreateInput = {
   name: string
   email: string
   password: string
+  role?: $Enums.AdminRole
   status?: $Enums.AdminStatus
   createdAt?: Date | string
   updatedAt?: Date | string
+  notifications?: Prisma.NotificationCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUncheckedCreateInput = {
@@ -264,9 +281,11 @@ export type AdminUncheckedCreateInput = {
   name: string
   email: string
   password: string
+  role?: $Enums.AdminRole
   status?: $Enums.AdminStatus
   createdAt?: Date | string
   updatedAt?: Date | string
+  notifications?: Prisma.NotificationUncheckedCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUpdateInput = {
@@ -274,9 +293,11 @@ export type AdminUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
   password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
   status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  notifications?: Prisma.NotificationUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUncheckedUpdateInput = {
@@ -284,9 +305,11 @@ export type AdminUncheckedUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
   password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
   status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  notifications?: Prisma.NotificationUncheckedUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminCreateManyInput = {
@@ -294,6 +317,7 @@ export type AdminCreateManyInput = {
   name: string
   email: string
   password: string
+  role?: $Enums.AdminRole
   status?: $Enums.AdminStatus
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -304,6 +328,7 @@ export type AdminUpdateManyMutationInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
   password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
   status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -314,6 +339,7 @@ export type AdminUncheckedUpdateManyInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   email?: Prisma.StringFieldUpdateOperationsInput | string
   password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
   status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -324,6 +350,7 @@ export type AdminCountOrderByAggregateInput = {
   name?: Prisma.SortOrder
   email?: Prisma.SortOrder
   password?: Prisma.SortOrder
+  role?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -334,6 +361,7 @@ export type AdminMaxOrderByAggregateInput = {
   name?: Prisma.SortOrder
   email?: Prisma.SortOrder
   password?: Prisma.SortOrder
+  role?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -344,15 +372,130 @@ export type AdminMinOrderByAggregateInput = {
   name?: Prisma.SortOrder
   email?: Prisma.SortOrder
   password?: Prisma.SortOrder
+  role?: Prisma.SortOrder
   status?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type AdminNullableScalarRelationFilter = {
+  is?: Prisma.AdminWhereInput | null
+  isNot?: Prisma.AdminWhereInput | null
+}
+
+export type EnumAdminRoleFieldUpdateOperationsInput = {
+  set?: $Enums.AdminRole
 }
 
 export type EnumAdminStatusFieldUpdateOperationsInput = {
   set?: $Enums.AdminStatus
 }
 
+export type AdminCreateNestedOneWithoutNotificationsInput = {
+  create?: Prisma.XOR<Prisma.AdminCreateWithoutNotificationsInput, Prisma.AdminUncheckedCreateWithoutNotificationsInput>
+  connectOrCreate?: Prisma.AdminCreateOrConnectWithoutNotificationsInput
+  connect?: Prisma.AdminWhereUniqueInput
+}
+
+export type AdminUpdateOneWithoutNotificationsNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminCreateWithoutNotificationsInput, Prisma.AdminUncheckedCreateWithoutNotificationsInput>
+  connectOrCreate?: Prisma.AdminCreateOrConnectWithoutNotificationsInput
+  upsert?: Prisma.AdminUpsertWithoutNotificationsInput
+  disconnect?: Prisma.AdminWhereInput | boolean
+  delete?: Prisma.AdminWhereInput | boolean
+  connect?: Prisma.AdminWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUpdateToOneWithWhereWithoutNotificationsInput, Prisma.AdminUpdateWithoutNotificationsInput>, Prisma.AdminUncheckedUpdateWithoutNotificationsInput>
+}
+
+export type AdminCreateWithoutNotificationsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: $Enums.AdminRole
+  status?: $Enums.AdminStatus
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type AdminUncheckedCreateWithoutNotificationsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: $Enums.AdminRole
+  status?: $Enums.AdminStatus
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type AdminCreateOrConnectWithoutNotificationsInput = {
+  where: Prisma.AdminWhereUniqueInput
+  create: Prisma.XOR<Prisma.AdminCreateWithoutNotificationsInput, Prisma.AdminUncheckedCreateWithoutNotificationsInput>
+}
+
+export type AdminUpsertWithoutNotificationsInput = {
+  update: Prisma.XOR<Prisma.AdminUpdateWithoutNotificationsInput, Prisma.AdminUncheckedUpdateWithoutNotificationsInput>
+  create: Prisma.XOR<Prisma.AdminCreateWithoutNotificationsInput, Prisma.AdminUncheckedCreateWithoutNotificationsInput>
+  where?: Prisma.AdminWhereInput
+}
+
+export type AdminUpdateToOneWithWhereWithoutNotificationsInput = {
+  where?: Prisma.AdminWhereInput
+  data: Prisma.XOR<Prisma.AdminUpdateWithoutNotificationsInput, Prisma.AdminUncheckedUpdateWithoutNotificationsInput>
+}
+
+export type AdminUpdateWithoutNotificationsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
+  status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type AdminUncheckedUpdateWithoutNotificationsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumAdminRoleFieldUpdateOperationsInput | $Enums.AdminRole
+  status?: Prisma.EnumAdminStatusFieldUpdateOperationsInput | $Enums.AdminStatus
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+
+/**
+ * Count Type AdminCountOutputType
+ */
+
+export type AdminCountOutputType = {
+  notifications: number
+}
+
+export type AdminCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  notifications?: boolean | AdminCountOutputTypeCountNotificationsArgs
+}
+
+/**
+ * AdminCountOutputType without action
+ */
+export type AdminCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AdminCountOutputType
+   */
+  select?: Prisma.AdminCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * AdminCountOutputType without action
+ */
+export type AdminCountOutputTypeCountNotificationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.NotificationWhereInput
+}
 
 
 export type AdminSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -360,9 +503,12 @@ export type AdminSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   name?: boolean
   email?: boolean
   password?: boolean
+  role?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  notifications?: boolean | Prisma.Admin$notificationsArgs<ExtArgs>
+  _count?: boolean | Prisma.AdminCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["admin"]>
 
 export type AdminSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -370,6 +516,7 @@ export type AdminSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   name?: boolean
   email?: boolean
   password?: boolean
+  role?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -380,6 +527,7 @@ export type AdminSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   name?: boolean
   email?: boolean
   password?: boolean
+  role?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -390,21 +538,31 @@ export type AdminSelectScalar = {
   name?: boolean
   email?: boolean
   password?: boolean
+  role?: boolean
   status?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type AdminOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "password" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["admin"]>
+export type AdminOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "password" | "role" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["admin"]>
+export type AdminInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  notifications?: boolean | Prisma.Admin$notificationsArgs<ExtArgs>
+  _count?: boolean | Prisma.AdminCountOutputTypeDefaultArgs<ExtArgs>
+}
+export type AdminIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
+export type AdminIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
 
 export type $AdminPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Admin"
-  objects: {}
+  objects: {
+    notifications: Prisma.$NotificationPayload<ExtArgs>[]
+  }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     name: string
     email: string
     password: string
+    role: $Enums.AdminRole
     status: $Enums.AdminStatus
     createdAt: Date
     updatedAt: Date
@@ -802,6 +960,7 @@ readonly fields: AdminFieldRefs;
  */
 export interface Prisma__AdminClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  notifications<T extends Prisma.Admin$notificationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Admin$notificationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$NotificationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -835,6 +994,7 @@ export interface AdminFieldRefs {
   readonly name: Prisma.FieldRef<"Admin", 'String'>
   readonly email: Prisma.FieldRef<"Admin", 'String'>
   readonly password: Prisma.FieldRef<"Admin", 'String'>
+  readonly role: Prisma.FieldRef<"Admin", 'AdminRole'>
   readonly status: Prisma.FieldRef<"Admin", 'AdminStatus'>
   readonly createdAt: Prisma.FieldRef<"Admin", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Admin", 'DateTime'>
@@ -855,6 +1015,10 @@ export type AdminFindUniqueArgs<ExtArgs extends runtime.Types.Extensions.Interna
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
+  /**
    * Filter, which Admin to fetch.
    */
   where: Prisma.AdminWhereUniqueInput
@@ -873,6 +1037,10 @@ export type AdminFindUniqueOrThrowArgs<ExtArgs extends runtime.Types.Extensions.
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
+  /**
    * Filter, which Admin to fetch.
    */
   where: Prisma.AdminWhereUniqueInput
@@ -890,6 +1058,10 @@ export type AdminFindFirstArgs<ExtArgs extends runtime.Types.Extensions.Internal
    * Omit specific fields from the Admin
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
   /**
    * Filter, which Admin to fetch.
    */
@@ -939,6 +1111,10 @@ export type AdminFindFirstOrThrowArgs<ExtArgs extends runtime.Types.Extensions.I
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
+  /**
    * Filter, which Admin to fetch.
    */
   where?: Prisma.AdminWhereInput
@@ -986,6 +1162,10 @@ export type AdminFindManyArgs<ExtArgs extends runtime.Types.Extensions.InternalA
    * Omit specific fields from the Admin
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
   /**
    * Filter, which Admins to fetch.
    */
@@ -1035,6 +1215,10 @@ export type AdminCreateArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
+  /**
    * The data needed to create a Admin.
    */
   data: Prisma.XOR<Prisma.AdminCreateInput, Prisma.AdminUncheckedCreateInput>
@@ -1082,6 +1266,10 @@ export type AdminUpdateArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
    * Omit specific fields from the Admin
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
   /**
    * The data needed to update a Admin.
    */
@@ -1149,6 +1337,10 @@ export type AdminUpsertArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
+  /**
    * The filter to search for the Admin to update in case it exists.
    */
   where: Prisma.AdminWhereUniqueInput
@@ -1175,6 +1367,10 @@ export type AdminDeleteArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
+  /**
    * Filter which Admin to delete.
    */
   where: Prisma.AdminWhereUniqueInput
@@ -1195,6 +1391,30 @@ export type AdminDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Interna
 }
 
 /**
+ * Admin.notifications
+ */
+export type Admin$notificationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Notification
+   */
+  select?: Prisma.NotificationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Notification
+   */
+  omit?: Prisma.NotificationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.NotificationInclude<ExtArgs> | null
+  where?: Prisma.NotificationWhereInput
+  orderBy?: Prisma.NotificationOrderByWithRelationInput | Prisma.NotificationOrderByWithRelationInput[]
+  cursor?: Prisma.NotificationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.NotificationScalarFieldEnum | Prisma.NotificationScalarFieldEnum[]
+}
+
+/**
  * Admin without action
  */
 export type AdminDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1206,4 +1426,8 @@ export type AdminDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    * Omit specific fields from the Admin
    */
   omit?: Prisma.AdminOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminInclude<ExtArgs> | null
 }

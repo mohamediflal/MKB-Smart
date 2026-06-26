@@ -7,6 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AdminRole {
+  ADMIN
+  SUPER_ADMIN
+}
+
 enum UserStatus {
   ACTIVE
   SUSPENDED
@@ -23,6 +28,40 @@ enum ProductStatus {
   INACTIVE
 }
 
+enum NotificationType {
+  NEW_ORDER
+  ORDER_CONFIRMED
+  ORDER_PROCESSING
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  LOW_STOCK
+  OUT_OF_STOCK
+  ADMIN_APPROVAL
+  ADMIN_PROMOTED
+  ADMIN_DEMOTED
+  ADMIN_APPROVED
+}
+
+enum PaymentMethod {
+  CARD
+  CASH_ON_DELIVERY
+}
+
+enum OrderStatus {
+  PLACED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum NotificationTarget {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
 model User {
   id        String       @id @default(uuid())
   name      String
@@ -36,6 +75,7 @@ model User {
   orders    Order[]
 
   favorites Favorite[]
+  notifications Notification[]
 
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -46,8 +86,11 @@ model Admin {
   name      String
   email     String       @unique
   password  String
+  
+  role      AdminRole  @default(ADMIN)
+  status    AdminStatus  @default(PENDING)
 
-  status    AdminStatus   @default(PENDING)
+  notifications Notification[]
 
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -139,17 +182,50 @@ model Order {
 
   shippingAddress   Json
 
-  paymentMethod     String     @default("card")
+  paymentMethod     PaymentMethod  @default(CARD)
 
   subtotal          Float
   deliveryFee       Float?     @default(0)
   total             Float
 
-  status            String     @default("Placed")
+  status            OrderStatus    @default(PLACED)
   statusHistory     Json
 
   isPaid            Boolean?   @default(false)
 
+  notifications   Notification[]
+
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
+}
+
+model Notification {
+  id          String            @id @default(uuid())
+
+  type        NotificationType
+  title       String
+  message     String
+  target      NotificationTarget
+
+  // Separate FKs for each targe
+
+userId      String?
+  adminId     String?
+  orderId     String?
+
+  isRead      Boolean           @default(false)
+  isDeleted   Boolean           @default(false)
+
+  // Relationships
+  user        User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin       Admin?            @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  order       Order?            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime          @default(now())
+  readAt      DateTime?
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([orderId])
+  @@index([target, isRead])
 }
