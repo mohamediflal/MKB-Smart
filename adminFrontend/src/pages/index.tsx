@@ -372,24 +372,21 @@ function IndexPage({ onSelectRole }) {
 						<span className="mt-2 block text-sm font-semibold tracking-[0.34em] text-emerald-700/80">Admin Portal</span>
 					</div>
 					<h1 className="mt-4 text-4xl font-semibold leading-tight tracking-tight text-slate-950 sm:text-5xl">
-						Choose how you want to continue.
+						Welcome to MKB-Smart Admin Console.
 					</h1>
 					<p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
-						Pick Admin if you manage products, inventory, and orders. Pick Super Admin if you manage the full platform.
+						Access your administrative tools to manage products, inventory, and orders.
 					</p>
 				</div>
 
-				<div className="mt-12 grid gap-6 md:grid-cols-2">
-					<RoleCard
-						title="Admin"
-						description="Use the Admin login screen to sign in or switch to register a new admin account."
+				<div className="mt-12">
+					<button
+						type="button"
 						onClick={() => onSelectRole?.('admin')}
-					/>
-					<RoleCard
-						title="Super Admin"
-						description="Use the Super Admin login screen to access elevated platform controls."
-						onClick={() => onSelectRole?.('superadmin')}
-					/>
+						className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#17813d] px-8 text-base font-semibold text-white shadow-[0_16px_30px_rgba(23,129,61,0.25)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#126732] active:translate-y-0 cursor-pointer"
+					>
+						Get Started
+					</button>
 				</div>
 			</div>
 		</main>

@@ -608,14 +608,6 @@ export const adminLogin = async (req: Request, res: Response) => {
 
     const normalizedEmail = email.toLowerCase()
 
-    const superAdminEmails = process.env.SUPER_ADMIN_EMAIL
-        ? process.env.SUPER_ADMIN_EMAIL.split(',').map((e) => e.trim().toLowerCase())
-        : []
-
-    if (superAdminEmails.includes(normalizedEmail)) {
-        return res.status(403).json({ message: 'Use the super admin login endpoint' })
-    }
-
     const admin = await prisma.admin.findUnique({ where: { email: normalizedEmail } })
 
     if (!admin) {
@@ -631,11 +623,12 @@ export const adminLogin = async (req: Request, res: Response) => {
         return res.status(401).json({ message: 'Wrong password' })
     }
 
-    const token = generateToken({ id: admin.id, email: admin.email, role: 'admin' })
+    const isSuperAdmin = admin.role === 'SUPER_ADMIN'
+    const token = generateToken({ id: admin.id, email: admin.email, role: isSuperAdmin ? 'superadmin' : 'admin' })
 
     const adminData: any = { ...admin }
     delete adminData.password
-    adminData.isSuperAdmin = getSuperAdmin(adminData.email)
+    adminData.isSuperAdmin = isSuperAdmin
 
     res.status(200).json({ message: 'Admin login successful', admin: adminData, token })
 }
@@ -644,6 +637,9 @@ export const adminLogin = async (req: Request, res: Response) => {
 export const listAdmins = async (req: Request & { userId?: string }, res: Response) => {
     try {
         const admins = await prisma.admin.findMany({
+            where: {
+                role: 'ADMIN'
+            },
             orderBy: {
                 createdAt: 'desc'
             }

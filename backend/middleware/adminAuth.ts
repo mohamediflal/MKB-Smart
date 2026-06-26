@@ -31,7 +31,7 @@ export default async function adminAuth(req: Request & { admin?: any }, res: Res
 
 		const safeAdmin: any = { ...admin }
 		delete safeAdmin.password
-		safeAdmin.isSuperAdmin = (process.env.SUPER_ADMIN_EMAIL || '').split(',').map(e => e.trim().toLowerCase()).includes((safeAdmin.email || '').toLowerCase())
+		safeAdmin.isSuperAdmin = admin.role === 'SUPER_ADMIN'
 
 		req.admin = safeAdmin
 		next()
