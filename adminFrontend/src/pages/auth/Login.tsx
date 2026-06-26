@@ -66,7 +66,7 @@ function Login({ role = 'admin', mode = 'login', onModeChange, onBack, onLogin }
 				setError('Invalid email or password')
 				return
 			}
-			onLogin?.()
+			onLogin?.(u)
 		} catch (err) {
 			setError(err?.message || 'Login failed')
 		}

@@ -22,7 +22,7 @@ function ForgotPassword() {
 	const handleSubmit = async (event) => {
 		event.preventDefault()
 		if (!email) return
-		
+
 		setIsLoading(true)
 		setError(null)
 		try {

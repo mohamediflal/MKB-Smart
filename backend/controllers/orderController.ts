@@ -1,42 +1,74 @@
 import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma.js';
 
-// Auto-transition orders from 'Pending' to 'Placed' after 1 minute
-const autoUpdatePendingOrders = async () => {
-  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
-  try {
-    const pendingOrders = await prisma.order.findMany({
-      where: {
-        status: 'Pending',
-        createdAt: {
-          lt: oneMinuteAgo
-        }
-      }
-    });
+// Helper to map DB order to client format
+const formatOrder = (order: any) => {
+  if (!order) return null;
 
-    for (const order of pendingOrders) {
-      const existingHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
-      const updatedHistory = [
-        ...existingHistory,
-        { status: 'Placed', timestamp: new Date().toISOString(), message: 'Order transitioned to Placed automatically after 1 minute' }
-      ];
+  const createdAtTime = new Date(order.createdAt).getTime();
+  const timeDifference = Date.now() - createdAtTime;
+  
+  let status = order.status;
+  if (order.status === 'PLACED') {
+    if (timeDifference < 60000) {
+      status = 'Pending';
+    } else {
+      status = 'Placed';
+    }
+  } else if (order.status === 'PROCESSING') {
+    status = 'Processing';
+  } else if (order.status === 'SHIPPED') {
+    status = 'Shipped';
+  } else if (order.status === 'DELIVERED') {
+    status = 'Delivered';
+  } else if (order.status === 'CANCELLED') {
+    status = 'Cancelled';
+  }
 
-      await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          status: 'Placed',
-          statusHistory: updatedHistory
-        }
+  let statusHistory = Array.isArray(order.statusHistory) ? [...order.statusHistory] : [];
+
+  // If logical status transitioned to 'Placed' or beyond, but 'Placed' is missing in history, inject it dynamically
+  if (order.status === 'PLACED' && timeDifference >= 60000) {
+    const hasPlaced = statusHistory.some((h: any) => h.status === 'Placed');
+    if (!hasPlaced) {
+      statusHistory.push({
+        status: 'Placed',
+        timestamp: new Date(createdAtTime + 60000).toISOString(),
+        message: 'Order transitioned to Placed automatically after 1 minute'
       });
     }
-  } catch (err) {
-    console.error('Auto Update Pending Orders Error:', err);
+  } else if (order.status !== 'PLACED' && order.status !== 'CANCELLED') {
+    // If it's in a state beyond PLACED (PROCESSING, SHIPPED, DELIVERED), ensure Placed is in the history
+    const hasPlaced = statusHistory.some((h: any) => h.status === 'Placed');
+    if (!hasPlaced) {
+      const pendingIndex = statusHistory.findIndex((h: any) => h.status === 'Pending');
+      const placedEvent = {
+        status: 'Placed',
+        timestamp: new Date(createdAtTime + 60000).toISOString(),
+        message: 'Order transitioned to Placed automatically after 1 minute'
+      };
+      if (pendingIndex !== -1) {
+        statusHistory.splice(pendingIndex + 1, 0, placedEvent);
+      } else {
+        statusHistory.unshift(placedEvent);
+      }
+    }
   }
+
+  let paymentMethod = order.paymentMethod;
+  if (order.paymentMethod === 'CASH_ON_DELIVERY') {
+    paymentMethod = 'cod';
+  } else if (order.paymentMethod === 'CARD') {
+    paymentMethod = 'card';
+  }
+
+  return {
+    ...order,
+    status,
+    statusHistory,
+    paymentMethod
+  };
 };
-
-// Start background periodic check every 15 seconds
-setInterval(autoUpdatePendingOrders, 15000);
-
 
 // placing orders using COD
 export const placeOrder = async (req: Request & { userId?: string }, res: Response) => {
@@ -57,11 +89,11 @@ export const placeOrder = async (req: Request & { userId?: string }, res: Respon
         userId,
         items,
         shippingAddress,
-        paymentMethod: 'cod',
+        paymentMethod: 'CASH_ON_DELIVERY',
         subtotal: Number(subtotal),
         deliveryFee: Number(deliveryFee || 0),
         total: Number(total),
-        status: 'Pending',
+        status: 'PLACED',
         statusHistory: [
           { status: 'Pending', timestamp: new Date().toISOString(), message: 'Order placed using Cash on Delivery (Pending Verification)' }
         ],
@@ -69,7 +101,7 @@ export const placeOrder = async (req: Request & { userId?: string }, res: Respon
       }
     });
 
-    return res.status(201).json({ success: true, message: 'Order placed successfully', order });
+    return res.status(201).json({ success: true, message: 'Order placed successfully', order: formatOrder(order) });
   } catch (error: any) {
     console.error('Place Order Error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
@@ -95,11 +127,11 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
         userId,
         items,
         shippingAddress,
-        paymentMethod: 'card',
+        paymentMethod: 'CARD',
         subtotal: Number(subtotal),
         deliveryFee: Number(deliveryFee || 0),
         total: Number(total),
-        status: 'Pending',
+        status: 'PLACED',
         statusHistory: [
           { status: 'Pending', timestamp: new Date().toISOString(), message: 'Order placed and paid using Card (Pending Verification)' }
         ],
@@ -107,7 +139,7 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
       }
     });
 
-    return res.status(201).json({ success: true, message: 'Order placed successfully', order });
+    return res.status(201).json({ success: true, message: 'Order placed successfully', order: formatOrder(order) });
   } catch (error: any) {
     console.error('Place Card Order Error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
@@ -122,14 +154,13 @@ export const getUserOrders = async (req: Request & { userId?: string }, res: Res
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    await autoUpdatePendingOrders();
-
     const orders = await prisma.order.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
 
-    return res.status(200).json({ success: true, orders });
+    const formattedOrders = orders.map(order => formatOrder(order));
+    return res.status(200).json({ success: true, orders: formattedOrders });
   } catch (error: any) {
     console.error('Get User Orders Error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
@@ -139,12 +170,12 @@ export const getUserOrders = async (req: Request & { userId?: string }, res: Res
 // Show all orders data for admin panel
 export const getAllOrders = async (req: Request, res: Response) => {
   try {
-    await autoUpdatePendingOrders();
-
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    return res.status(200).json({ success: true, orders });
+    
+    const formattedOrders = orders.map(order => formatOrder(order));
+    return res.status(200).json({ success: true, orders: formattedOrders });
   } catch (error: any) {
     console.error('Get All Orders Error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
@@ -159,11 +190,11 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Required fields missing: orderId, status' });
     }
 
-    if (status === 'Cancelled') {
+    if (status === 'Cancelled' || status === 'CANCELLED') {
       return res.status(400).json({ success: false, message: 'Admin or Super Admin cannot change order status to Cancelled.' });
     }
 
-    if (status === 'Pending') {
+    if (status === 'Pending' || status === 'PENDING') {
       return res.status(400).json({ success: false, message: 'Admin or Super Admin cannot change order status to Pending.' });
     }
 
@@ -175,29 +206,65 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    if (order.status === 'Pending') {
+    // Determine current logical status
+    const createdAtTime = new Date(order.createdAt).getTime();
+    const timeDifference = Date.now() - createdAtTime;
+    
+    if (order.status === 'PLACED' && timeDifference < 60000) {
       return res.status(400).json({ success: false, message: 'Cannot update status of a Pending order. Please wait for it to transition to Placed.' });
     }
 
-    if (order.status === 'Cancelled') {
+    if (order.status === 'CANCELLED') {
       return res.status(400).json({ success: false, message: 'Cannot update status of a Cancelled order.' });
     }
 
-    const existingHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+    // Map input status to DB enum
+    let dbStatus: 'PLACED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+    let displayStatus: string;
+    
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'placed') {
+      dbStatus = 'PLACED';
+      displayStatus = 'Placed';
+    } else if (statusLower === 'processing') {
+      dbStatus = 'PROCESSING';
+      displayStatus = 'Processing';
+    } else if (statusLower === 'shipped') {
+      dbStatus = 'SHIPPED';
+      displayStatus = 'Shipped';
+    } else if (statusLower === 'delivered') {
+      dbStatus = 'DELIVERED';
+      displayStatus = 'Delivered';
+    } else {
+      return res.status(400).json({ success: false, message: `Invalid status: ${status}` });
+    }
+
+    let existingHistory = Array.isArray(order.statusHistory) ? [...order.statusHistory] : [];
+    
+    // Ensure the 'Placed' transition event is recorded in the history if it has logically passed but is not in DB yet
+    const hasPlaced = existingHistory.some((h: any) => h.status === 'Placed');
+    if (!hasPlaced) {
+      existingHistory.push({
+        status: 'Placed',
+        timestamp: new Date(createdAtTime + 60000).toISOString(),
+        message: 'Order transitioned to Placed automatically after 1 minute'
+      });
+    }
+
     const updatedHistory = [
       ...existingHistory,
-      { status, timestamp: new Date().toISOString(), message: message || `Status updated to ${status}` }
+      { status: displayStatus, timestamp: new Date().toISOString(), message: message || `Status updated to ${displayStatus}` }
     ];
 
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: {
-        status,
+        status: dbStatus,
         statusHistory: updatedHistory
       }
     });
 
-    return res.status(200).json({ success: true, message: 'Order status updated successfully', order: updated });
+    return res.status(200).json({ success: true, message: 'Order status updated successfully', order: formatOrder(updated) });
   } catch (error: any) {
     console.error('Update Order Status Error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
@@ -230,11 +297,16 @@ export const cancelUserOrder = async (req: Request & { userId?: string }, res: R
       return res.status(403).json({ success: false, message: 'Forbidden: You do not own this order' });
     }
 
-    if (order.status !== 'Pending') {
+    // Determine current logical status
+    const createdAtTime = new Date(order.createdAt).getTime();
+    const timeDifference = Date.now() - createdAtTime;
+    const isPending = order.status === 'PLACED' && timeDifference < 60000;
+
+    if (!isPending) {
       return res.status(400).json({ success: false, message: 'Order can only be cancelled while status is Pending (first 1 minute).' });
     }
 
-    const existingHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+    const existingHistory = Array.isArray(order.statusHistory) ? [...order.statusHistory] : [];
     const updatedHistory = [
       ...existingHistory,
       { status: 'Cancelled', timestamp: new Date().toISOString(), message: 'Order cancelled by customer' }
@@ -243,12 +315,12 @@ export const cancelUserOrder = async (req: Request & { userId?: string }, res: R
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: {
-        status: 'Cancelled',
+        status: 'CANCELLED',
         statusHistory: updatedHistory
       }
     });
 
-    return res.status(200).json({ success: true, message: 'Order cancelled successfully', order: updated });
+    return res.status(200).json({ success: true, message: 'Order cancelled successfully', order: formatOrder(updated) });
   } catch (error: any) {
     console.error('Cancel Order Error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Internal server error' });

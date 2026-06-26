@@ -9,6 +9,14 @@
 * 🟢 You can import this file directly.
 */
 
+export const AdminRole = {
+  ADMIN: 'ADMIN',
+  SUPER_ADMIN: 'SUPER_ADMIN'
+} as const
+
+export type AdminRole = (typeof AdminRole)[keyof typeof AdminRole]
+
+
 export const UserStatus = {
   ACTIVE: 'ACTIVE',
   SUSPENDED: 'SUSPENDED'
@@ -32,3 +40,49 @@ export const ProductStatus = {
 } as const
 
 export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus]
+
+
+export const NotificationType = {
+  NEW_ORDER: 'NEW_ORDER',
+  ORDER_CONFIRMED: 'ORDER_CONFIRMED',
+  ORDER_PROCESSING: 'ORDER_PROCESSING',
+  ORDER_SHIPPED: 'ORDER_SHIPPED',
+  ORDER_DELIVERED: 'ORDER_DELIVERED',
+  ORDER_CANCELLED: 'ORDER_CANCELLED',
+  LOW_STOCK: 'LOW_STOCK',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
+  ADMIN_APPROVAL: 'ADMIN_APPROVAL',
+  ADMIN_PROMOTED: 'ADMIN_PROMOTED',
+  ADMIN_DEMOTED: 'ADMIN_DEMOTED',
+  ADMIN_APPROVED: 'ADMIN_APPROVED'
+} as const
+
+export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType]
+
+
+export const PaymentMethod = {
+  CARD: 'CARD',
+  CASH_ON_DELIVERY: 'CASH_ON_DELIVERY'
+} as const
+
+export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod]
+
+
+export const OrderStatus = {
+  PLACED: 'PLACED',
+  PROCESSING: 'PROCESSING',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED'
+} as const
+
+export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
+
+
+export const NotificationTarget = {
+  USER: 'USER',
+  ADMIN: 'ADMIN',
+  SUPER_ADMIN: 'SUPER_ADMIN'
+} as const
+
+export type NotificationTarget = (typeof NotificationTarget)[keyof typeof NotificationTarget]

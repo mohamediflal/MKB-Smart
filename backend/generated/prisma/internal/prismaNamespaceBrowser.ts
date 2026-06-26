@@ -57,7 +57,8 @@ export const ModelName = {
   Address: 'Address',
   Product: 'Product',
   Favorite: 'Favorite',
-  Order: 'Order'
+  Order: 'Order',
+  Notification: 'Notification'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -95,6 +96,7 @@ export const AdminScalarFieldEnum = {
   name: 'name',
   email: 'email',
   password: 'password',
+  role: 'role',
   status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -183,6 +185,24 @@ export const OrderScalarFieldEnum = {
 } as const
 
 export type OrderScalarFieldEnum = (typeof OrderScalarFieldEnum)[keyof typeof OrderScalarFieldEnum]
+
+
+export const NotificationScalarFieldEnum = {
+  id: 'id',
+  type: 'type',
+  title: 'title',
+  message: 'message',
+  target: 'target',
+  userId: 'userId',
+  adminId: 'adminId',
+  orderId: 'orderId',
+  isRead: 'isRead',
+  isDeleted: 'isDeleted',
+  createdAt: 'createdAt',
+  readAt: 'readAt'
+} as const
+
+export type NotificationScalarFieldEnum = (typeof NotificationScalarFieldEnum)[keyof typeof NotificationScalarFieldEnum]
 
 
 export const SortOrder = {

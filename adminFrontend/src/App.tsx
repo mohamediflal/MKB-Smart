@@ -51,7 +51,13 @@ function AdminAuthRoute() {
       mode={mode}
       onModeChange={setMode}
       onBack={() => navigate('/')}
-      onLogin={() => navigate('/admin/dashboard')}
+      onLogin={(user) => {
+        if (user?.isSuperAdmin) {
+          navigate('/superadmin/dashboard')
+        } else {
+          navigate('/admin/dashboard')
+        }
+      }}
     />
   )
 }
@@ -65,7 +71,13 @@ function SuperAdminAuthRoute() {
       mode="login"
       onModeChange={() => { }}
       onBack={() => navigate('/')}
-      onLogin={() => navigate('/superadmin/dashboard')}
+      onLogin={(user) => {
+        if (user?.isSuperAdmin) {
+          navigate('/superadmin/dashboard')
+        } else {
+          navigate('/admin/dashboard')
+        }
+      }}
     />
   )
 }
