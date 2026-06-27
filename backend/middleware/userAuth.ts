@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
+import { prisma } from '../configs/prisma'
 
 interface JwtPayload {
 	id?: string
@@ -7,7 +8,7 @@ interface JwtPayload {
 	exp?: number
 }
 
-export default function userAuth(req: Request & { userId?: string }, res: Response, next: NextFunction) {
+export default async function userAuth(req: Request & { userId?: string }, res: Response, next: NextFunction) {
 	const auth = req.headers.authorization
 
 	// Check for Bearer token
@@ -22,6 +23,19 @@ export default function userAuth(req: Request & { userId?: string }, res: Respon
 
 		if (!decoded.id) {
 			return res.status(401).json({ success: false, message: 'Unauthorized. Login again.' })
+		}
+
+		// Fetch user to verify they still exist and are not suspended
+		const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+		if (!user) {
+			return res.status(401).json({ success: false, message: 'Unauthorized. User not found.' })
+		}
+
+		if (user.status === 'SUSPENDED') {
+			return res.status(403).json({
+				success: false,
+				message: 'Your account has been suspended. If you believe this is an error or require further assistance, please contact MKB Support at mkbsmart30@gmail.com.'
+			})
 		}
 
 		// Attach user ID to request for use in controllers

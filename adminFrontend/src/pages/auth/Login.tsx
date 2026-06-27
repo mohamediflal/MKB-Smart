@@ -68,7 +68,11 @@ function Login({ role = 'admin', mode = 'login', onModeChange, onBack, onLogin }
 			}
 			onLogin?.(u)
 		} catch (err) {
-			setError(err?.message || 'Login failed')
+			const errMsg = err?.message || 'Login failed'
+			if (errMsg.toLowerCase().includes('suspended')) {
+				alert(errMsg)
+			}
+			setError(errMsg)
 		}
 	}
 

@@ -33,7 +33,10 @@ export async function login(email, password, role = 'admin') {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ email, password }),
 		})
-		if (!res.ok) return null
+		if (!res.ok) {
+			const errData = await res.json().catch(() => ({}));
+			throw new Error(errData.message || 'Invalid credentials');
+		}
 		const data = await res.json()
 		const admin = data.admin || {}
 		const user = {
@@ -52,8 +55,8 @@ export async function login(email, password, role = 'admin') {
 		}
 		if (typeof window !== 'undefined') localStorage.setItem(SESSION_KEY, JSON.stringify(user))
 		return user
-	} catch {
-		return null
+	} catch (err) {
+		throw err
 	}
 }
 
