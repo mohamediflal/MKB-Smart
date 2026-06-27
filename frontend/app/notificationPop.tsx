@@ -122,80 +122,80 @@ export default function NotificationPop() {
   }, [user]);
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={closeNotifications} statusBarTranslucent>
-      <SafeAreaView className="flex-1 bg-transparent" edges={[]}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          className="bg-black/50"
-          onPress={closeNotifications}
-          accessibilityRole="button"
-          accessibilityLabel="Close notifications"
-        />
+    <SafeAreaView className="flex-1 bg-transparent" edges={[]}>
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        className="bg-black/50"
+        onPress={closeNotifications}
+        accessibilityRole="button"
+        accessibilityLabel="Close notifications"
+      />
 
-        <View className="flex-1 items-center justify-center px-4" style={{ zIndex: 1 }}>
-          <View className="w-full max-w-md overflow-hidden rounded-2xl bg-[#f7fbf0] shadow-2xl" style={{ elevation: 10 }}>
-            <View className="flex-row items-center justify-between border-b border-[#bfcaba] bg-[#f7fbf0] px-4 py-3">
-              <Pressable
-                onPress={closeNotifications}
-                className="h-10 w-10 items-center justify-center rounded-full bg-white"
-                accessibilityRole="button"
-                accessibilityLabel="Close notifications"
-              >
-                <Ionicons name="arrow-back" size={22} color="#0d631b" />
-              </Pressable>
+      <View className="flex-1 items-center justify-center px-4" style={{ zIndex: 1 }}>
+        <View className="w-full max-w-md overflow-hidden rounded-2xl bg-[#f7fbf0] shadow-2xl" style={{ elevation: 10 }}>
+          <View className="flex-row items-center justify-between border-b border-[#bfcaba] bg-[#f7fbf0] px-4 py-3">
+            <Pressable
+              onPress={closeNotifications}
+              className="h-10 w-10 items-center justify-center rounded-full bg-white"
+              accessibilityRole="button"
+              accessibilityLabel="Close notifications"
+            >
+              <Ionicons name="arrow-back" size={22} color="#0d631b" />
+            </Pressable>
 
-              <View className="flex-row items-center gap-3">
-                <Text className="text-[20px] font-bold text-slate-900">Notifications</Text>
-                {notifications.some(n => !n.isRead) && (
-                  <Pressable onPress={handleMarkAllRead} accessibilityRole="button" accessibilityLabel="Mark all read">
-                    <Text className="text-[12px] font-bold text-[#0d631b]">Mark all read</Text>
-                  </Pressable>
-                )}
-              </View>
-
-              <Pressable
-                onPress={closeNotifications}
-                className="h-10 w-10 items-center justify-center rounded-full bg-white"
-                accessibilityRole="button"
-                accessibilityLabel="Close notifications"
-              >
-                <Ionicons name="close" size={22} color="#40493d" />
-              </Pressable>
+            <View className="flex-row items-center gap-3">
+              <Text className="text-[20px] font-bold text-slate-900">Notifications</Text>
+              {notifications.some(n => !n.isRead) && (
+                <Pressable onPress={handleMarkAllRead} accessibilityRole="button" accessibilityLabel="Mark all read">
+                  <Text className="text-[12px] font-bold text-[#0d631b]">Mark all read</Text>
+                </Pressable>
+              )}
             </View>
 
-            <View className="px-4 py-4">
-              <View className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 18, elevation: 5 }}>
-                {loading ? (
-                  <View className="py-20 justify-center items-center">
-                    <ActivityIndicator size="large" color="#2e7d32" />
-                    <Text className="mt-3 text-slate-500 text-sm font-medium">Loading notifications...</Text>
+            <Pressable
+              onPress={closeNotifications}
+              className="h-10 w-10 items-center justify-center rounded-full bg-white"
+              accessibilityRole="button"
+              accessibilityLabel="Close notifications"
+            >
+              <Ionicons name="close" size={22} color="#40493d" />
+            </Pressable>
+          </View>
+
+          <View className="px-4 py-4">
+            <View className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 18, elevation: 5 }}>
+              {loading ? (
+                <View className="py-20 justify-center items-center">
+                  <ActivityIndicator size="large" color="#2e7d32" />
+                  <Text className="mt-3 text-slate-500 text-sm font-medium">Loading notifications...</Text>
+                </View>
+              ) : notifications.length === 0 ? (
+                <View className="py-20 justify-center items-center px-6 text-center">
+                  <View className="h-14 w-14 items-center justify-center rounded-full bg-slate-50 border border-slate-100 mb-4">
+                    <Ionicons name="notifications-off-outline" size={28} color="#94a3b8" />
                   </View>
-                ) : notifications.length === 0 ? (
-                  <View className="py-20 justify-center items-center px-6 text-center">
-                    <View className="h-14 w-14 items-center justify-center rounded-full bg-slate-50 border border-slate-100 mb-4">
-                      <Ionicons name="notifications-off-outline" size={28} color="#94a3b8" />
-                    </View>
-                    <Text className="text-[16px] font-semibold text-slate-900">No Notifications</Text>
-                    <Text className="mt-1 text-[13px] text-slate-500 text-center">
-                      We will notify you when your orders or status updates require attention.
-                    </Text>
-                  </View>
-                ) : (
-                  <ScrollView className="max-h-[420px]" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
-                    {notifications.map((notification) => {
-                      const isOrderNotification = notification.type === 'NEW_ORDER' || notification.title.toLowerCase().includes('order');
-                      return (
-                        <NotificationItem
-                          key={notification.id}
-                          icon={isOrderNotification ? "cart-outline" : "notifications-outline"}
-                          iconBg={notification.isRead ? "#f1f5f0" : "#bdefbe"}
-                          iconColor={notification.isRead ? "#64748b" : "#2e7d32"}
-                          title={notification.title}
-                          description={notification.message}
-                          isRead={notification.isRead}
-                          onPress={async () => {
-                            await handleMarkRead(notification.id);
-                            closeNotifications();
+                  <Text className="text-[16px] font-semibold text-slate-900">No Notifications</Text>
+                  <Text className="mt-1 text-[13px] text-slate-500 text-center">
+                    We will notify you when your orders or status updates require attention.
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView className="max-h-[420px]" contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
+                  {notifications.map((notification) => {
+                    const isOrderNotification = notification.type === 'NEW_ORDER' || notification.title.toLowerCase().includes('order');
+                    return (
+                      <NotificationItem
+                        key={notification.id}
+                        icon={isOrderNotification ? "cart-outline" : "notifications-outline"}
+                        iconBg={notification.isRead ? "#f1f5f0" : "#bdefbe"}
+                        iconColor={notification.isRead ? "#64748b" : "#2e7d32"}
+                        title={notification.title}
+                        description={notification.message}
+                        isRead={notification.isRead}
+                        onPress={async () => {
+                          handleMarkRead(notification.id);
+                          closeNotifications();
+                          setTimeout(() => {
                             if (notification.orderId) {
                               router.push({
                                 pathname: "/myOrders",
@@ -204,28 +204,28 @@ export default function NotificationPop() {
                             } else {
                               router.push("/myOrders");
                             }
-                          }}
-                        />
-                      );
-                    })}
-                  </ScrollView>
-                )}
+                          }, 100);
+                        }}
+                      />
+                    );
+                  })}
+                </ScrollView>
+              )}
 
-                <View className="border-t border-[#bfcaba] p-4">
-                  <Pressable
-                    onPress={closeNotifications}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close"
-                    className="rounded-xl bg-[#2e7d32] py-4"
-                  >
-                    <Text className="text-center text-[16px] font-bold text-white">Close</Text>
-                  </Pressable>
-                </View>
+              <View className="border-t border-[#bfcaba] p-4">
+                <Pressable
+                  onPress={closeNotifications}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  className="rounded-xl bg-[#2e7d32] py-4"
+                >
+                  <Text className="text-center text-[16px] font-bold text-white">Close</Text>
+                </Pressable>
               </View>
             </View>
           </View>
         </View>
-      </SafeAreaView>
-    </Modal>
+      </View>
+    </SafeAreaView>
   );
 }

@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import cloudinary from '../configs/cloudinary';
 import nodemailer from 'nodemailer';
+import { handleAdminRegistration } from '../services/notificationService.js';
 
 const otpStore = new Map<string, { otp: string; expiresAt: number }>();
 
@@ -20,6 +21,234 @@ const createMailTransporter = async () => {
         });
     }
     return null;
+};
+
+const sendApprovalEmail = async (email: string, name: string) => {
+    try {
+        const transporter = await createMailTransporter();
+        if (!transporter) {
+            console.warn('[EMAIL] SMTP transporter not configured. Cannot send approval email.');
+            return;
+        }
+
+        const mailOptions = {
+            from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+            to: email,
+            subject: 'MKB-SMART Admin Account Approved',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #006d37; text-align: center;">Account Approved</h2>
+                    <p>Dear ${name},</p>
+                    <p>We are pleased to inform you that your request to register as an Admin on MKB-SMART has been approved by the Super Admin.</p>
+                    <p>You can now log in to the admin panel using your registered email and password.</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${process.env.ADMIN_FRONTEND_URL || 'http://localhost:5173'}" style="background-color: #006d37; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Login to Admin Panel</a>
+                    </div>
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">This is an automated message. Please do not reply directly to this email.</p>
+                </div>
+            `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Approval email sent to ${email}`);
+    } catch (error) {
+        console.error('Error sending approval email:', error);
+    }
+};
+
+const sendRejectionEmail = async (email: string, name: string) => {
+    try {
+        const transporter = await createMailTransporter();
+        if (!transporter) {
+            console.warn('[EMAIL] SMTP transporter not configured. Cannot send rejection email.');
+            return;
+        }
+
+        const mailOptions = {
+            from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+            to: email,
+            subject: 'MKB-SMART Admin Registration Request Status',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #d32f2f; text-align: center;">Registration Request Status</h2>
+                    <p>Dear ${name},</p>
+                    <p>Thank you for your interest in registering as an Admin on MKB-SMART.</p>
+                    <p>We regret to inform you that your registration request has been declined by the Super Admin.</p>
+                    <p>If you believe this was in error, please contact the Super Admin or support team.</p>
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">This is an automated message. Please do not reply directly to this email.</p>
+                </div>
+            `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Rejection email sent to ${email}`);
+    } catch (error) {
+        console.error('Error sending rejection email:', error);
+    }
+};
+
+const sendUserSuspensionEmail = async (email: string, name: string, status: string) => {
+    try {
+        const transporter = await createMailTransporter();
+        if (!transporter) {
+            console.warn('[EMAIL] SMTP transporter not configured. Cannot send user status update email.');
+            return;
+        }
+
+        const isSuspended = status === 'SUSPENDED';
+        const subject = isSuspended ? 'MKB-SMART Customer Account Suspended' : 'MKB-SMART Customer Account Reinstated';
+        const title = isSuspended ? 'Account Suspended' : 'Account Reinstated';
+        const color = isSuspended ? '#d32f2f' : '#006d37';
+        const messageHtml = isSuspended
+            ? `<p>We regret to inform you that your customer account has been suspended by the Super Admin.</p>
+               <p>If you believe this was a mistake, or wish to inquire about the suspension, please contact support.</p>`
+            : `<p>We are pleased to inform you that your customer account has been reinstated by the Super Admin.</p>
+               <p>You can now log in and continue shopping with MKB-SMART.</p>`;
+
+        const mailOptions = {
+            from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+            to: email,
+            subject,
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: ${color}; text-align: center;">${title}</h2>
+                    <p>Dear ${name},</p>
+                    ${messageHtml}
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">This is an automated message. Please do not reply directly to this email.</p>
+                </div>
+            `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] User status email sent to ${email} (status: ${status})`);
+    } catch (error) {
+        console.error('Error sending user status update email:', error);
+    }
+};
+
+const sendUserRemovalEmail = async (email: string, name: string) => {
+    try {
+        const transporter = await createMailTransporter();
+        if (!transporter) {
+            console.warn('[EMAIL] SMTP transporter not configured. Cannot send user removal email.');
+            return;
+        }
+
+        const mailOptions = {
+            from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+            to: email,
+            subject: 'MKB-SMART Customer Account Removed',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #d32f2f; text-align: center;">Account Removed</h2>
+                    <p>Dear ${name},</p>
+                    <p>Your customer account has been removed/deleted from the MKB-SMART system by the Super Admin.</p>
+                    <p>Thank you for the time you spent with us. If you have any remaining questions, please contact support.</p>
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">This is an automated message. Please do not reply directly to this email.</p>
+                </div>
+            `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] User removal email sent to ${email}`);
+    } catch (error) {
+        console.error('Error sending user removal email:', error);
+    }
+};
+
+const sendAdminSuspensionEmail = async (email: string, name: string, status: string) => {
+    try {
+        const transporter = await createMailTransporter();
+        if (!transporter) {
+            console.warn('[EMAIL] SMTP transporter not configured. Cannot send admin status update email.');
+            return;
+        }
+
+        const isSuspended = status === 'SUSPENDED';
+        const subject = isSuspended ? 'MKB-SMART Admin Account Suspended' : 'MKB-SMART Admin Account Reinstated';
+        const title = isSuspended ? 'Admin Account Suspended' : 'Admin Account Reinstated';
+        const color = isSuspended ? '#d32f2f' : '#006d37';
+        const messageHtml = isSuspended
+            ? `<p>We regret to inform you that your admin account has been suspended by the Super Admin.</p>
+               <p>Your access to the admin dashboard has been temporarily revoked. Please contact the Super Admin for clarification.</p>`
+            : `<p>We are pleased to inform you that your admin account has been reinstated by the Super Admin.</p>
+               <p>You can now log back into the admin dashboard using your credentials.</p>`;
+
+        const mailOptions = {
+            from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+            to: email,
+            subject,
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: ${color}; text-align: center;">${title}</h2>
+                    <p>Dear ${name},</p>
+                    ${messageHtml}
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">This is an automated message. Please do not reply directly to this email.</p>
+                </div>
+            `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Admin status email sent to ${email} (status: ${status})`);
+    } catch (error) {
+        console.error('Error sending admin status update email:', error);
+    }
+};
+
+const sendAdminRemovalEmail = async (email: string, name: string) => {
+    try {
+        const transporter = await createMailTransporter();
+        if (!transporter) {
+            console.warn('[EMAIL] SMTP transporter not configured. Cannot send admin removal email.');
+            return;
+        }
+
+        const mailOptions = {
+            from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+            to: email,
+            subject: 'MKB-SMART Admin Account Removed',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #d32f2f; text-align: center;">Admin Account Removed</h2>
+                    <p>Dear ${name},</p>
+                    <p>Your admin account has been removed/deleted from the MKB-SMART system by the Super Admin.</p>
+                    <p>If you believe this was in error, please contact the Super Admin.</p>
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">This is an automated message. Please do not reply directly to this email.</p>
+                </div>
+            `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Admin removal email sent to ${email}`);
+    } catch (error) {
+        console.error('Error sending admin removal email:', error);
+    }
+};
+
+const sendAdminRoleChangeEmail = async (email: string, name: string, newRole: string) => {
+    try {
+        const transporter = await createMailTransporter();
+        if (!transporter) {
+            console.warn('[EMAIL] SMTP transporter not configured. Cannot send admin role update email.');
+            return;
+        }
+
+        const roleString = newRole === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin';
+
+        const mailOptions = {
+            from: `"MKB-SMART Support" <${process.env.EMAIL_USER || 'no-reply@mkb-smart.com'}>`,
+            to: email,
+            subject: 'MKB-SMART Admin Account Role Update',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #006d37; text-align: center;">Role Updated</h2>
+                    <p>Dear ${name},</p>
+                    <p>We want to inform you that your administrative role on the MKB-SMART system has been updated by the Super Admin.</p>
+                    <p>Your new role is: <strong>${roleString}</strong>.</p>
+                    <p>Your active session has been invalidated for security reasons. Please log in again to apply the changes and access the dashboard corresponding to your updated role.</p>
+                    <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">This is an automated message. Please do not reply directly to this email.</p>
+                </div>
+            `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL] Admin role change email sent to ${email} (new role: ${newRole})`);
+    } catch (error) {
+        console.error('Error sending admin role update email:', error);
+    }
 };
 
 // Generate JWT token (accepts either id string or object payload)
@@ -380,6 +609,10 @@ export const login = async (req: Request, res: Response) => {
         return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    if (user.status === 'SUSPENDED') {
+        return res.status(403).json({ message: "Your account has been suspended. If you believe this is an error or require further assistance, please contact MKB Support at mkbsmart30@gmail.com." });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
         return res.status(401).json({ message: "Wrong password" });
@@ -512,9 +745,15 @@ export const deleteUser = async (req: Request & { userId?: string }, res: Respon
             return res.status(404).json({ message: 'User not found' });
         }
 
+        const isSelfDelete = req.userId === id;
+
         await prisma.user.delete({
             where: { id }
         });
+
+        if (!isSelfDelete) {
+            sendUserRemovalEmail(existing.email, existing.name);
+        }
 
         res.status(200).json({ success: true, message: 'User removed successfully' });
     } catch (error: any) {
@@ -587,6 +826,9 @@ export const adminRegister = async (req: Request, res: Response) => {
         },
     })
 
+    // Send push and db notification to super admins
+    await handleAdminRegistration(admin.id);
+
     const token = generateToken({ id: admin.id, email: admin.email })
 
     const adminData: any = { ...admin }
@@ -615,7 +857,7 @@ export const adminLogin = async (req: Request, res: Response) => {
     }
 
     if (admin.status === 'SUSPENDED') {
-        return res.status(403).json({ message: 'Your admin account has been suspended' })
+        return res.status(403).json({ message: "Your account has been suspended. If you believe this is an error or require further assistance, please contact MKB Support at mkbsmart30@gmail.com." })
     }
 
     const isMatch = await bcrypt.compare(password, admin.password)
@@ -637,16 +879,13 @@ export const adminLogin = async (req: Request, res: Response) => {
 export const listAdmins = async (req: Request & { userId?: string }, res: Response) => {
     try {
         const admins = await prisma.admin.findMany({
-            where: {
-                role: 'ADMIN'
-            },
             orderBy: {
                 createdAt: 'desc'
             }
         })
 
         const mappedAdmins = admins.map(a => {
-            const isSuperAdmin = getSuperAdmin(a.email)
+            const isSuperAdmin = a.role === 'SUPER_ADMIN' || getSuperAdmin(a.email)
             return {
                 id: a.id,
                 name: a.name,
@@ -664,13 +903,65 @@ export const listAdmins = async (req: Request & { userId?: string }, res: Respon
     }
 }
 
-// Update admin details by super admin
+// add new admins or super admins by super admin
+export const createAdmin = async (req: Request, res: Response) => {
+    try {
+        const { name, email, password, role, status } = req.body;
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ message: 'Please provide all required fields (name, email, password)' });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        // Check if admin already exists
+        const existingAdmin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
+        if (existingAdmin) {
+            return res.status(400).json({ message: 'Email already in use' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const adminRole = role === 'super_admin' ? 'SUPER_ADMIN' : 'ADMIN';
+        const adminStatus = status === 'Active' || status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED';
+
+        const admin = await prisma.admin.create({
+            data: {
+                name: name.trim(),
+                email: normalizedEmail,
+                password: hashedPassword,
+                role: adminRole,
+                status: adminStatus,
+            },
+        });
+
+        const adminData: any = { ...admin };
+        delete adminData.password;
+        adminData.isSuperAdmin = admin.role === 'SUPER_ADMIN';
+
+        res.status(201).json({ success: true, message: 'Admin account created successfully', admin: adminData });
+    } catch (error: any) {
+        console.error('Create Admin Error:', error);
+        res.status(500).json({ message: error.message || 'Internal server error' });
+    }
+};
+
+
+// Update admin or super admin details by super admin
 export const updateAdmin = async (req: Request & { userId?: string }, res: Response) => {
     try {
-        const { id, name, status } = req.body
+        const { id, name, status, role } = req.body
 
         if (!id) {
             return res.status(400).json({ message: 'Admin ID is required' })
+        }
+
+        const existing = await prisma.admin.findUnique({
+            where: { id }
+        });
+
+        if (!existing) {
+            return res.status(404).json({ message: 'Admin not found' });
         }
 
         const data: any = {}
@@ -678,13 +969,26 @@ export const updateAdmin = async (req: Request & { userId?: string }, res: Respo
         if (status) {
             data.status = status === 'Active' || status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED'
         }
+        if (role) {
+            data.role = role === 'super_admin' || role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN'
+        }
 
         const updated = await prisma.admin.update({
             where: { id },
             data
         })
 
-        const isSuperAdmin = getSuperAdmin(updated.email)
+        if (existing.status === 'PENDING' && updated.status === 'ACTIVE') {
+            sendApprovalEmail(updated.email, updated.name);
+        } else if (existing.status !== updated.status) {
+            sendAdminSuspensionEmail(updated.email, updated.name, updated.status);
+        }
+
+        if (role && existing.role !== updated.role) {
+            sendAdminRoleChangeEmail(updated.email, updated.name, updated.role);
+        }
+
+        const isSuperAdmin = updated.role === 'SUPER_ADMIN' || getSuperAdmin(updated.email)
         const safeAdmin = {
             id: updated.id,
             name: updated.name,
@@ -701,7 +1005,7 @@ export const updateAdmin = async (req: Request & { userId?: string }, res: Respo
     }
 }
 
-// Delete admin account by super admin
+// Delete admin or super admin account by super admin
 export const deleteAdmin = async (req: Request & { userId?: string }, res: Response) => {
     try {
         // Support both request body and query param
@@ -727,6 +1031,12 @@ export const deleteAdmin = async (req: Request & { userId?: string }, res: Respo
         await prisma.admin.delete({
             where: { id }
         })
+
+        if (existing.status === 'PENDING') {
+            sendRejectionEmail(existing.email, existing.name);
+        } else {
+            sendAdminRemovalEmail(existing.email, existing.name);
+        }
 
         res.status(200).json({ success: true, message: 'Admin removed successfully' })
     } catch (error: any) {
@@ -757,6 +1067,21 @@ export const superAdminLogin = async (req: Request, res: Response) => {
     const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || ''
     if (password !== superAdminPassword) {
         return res.status(401).json({ message: 'Invalid credentials' })
+    }
+
+    // Ensure Super Admin exists in the database so that foreign keys and device tokens work
+    let dbSuperAdmin = await prisma.admin.findUnique({ where: { email: normalizedEmail } });
+    if (!dbSuperAdmin) {
+        dbSuperAdmin = await prisma.admin.create({
+            data: {
+                id: `superadmin-${normalizedEmail}`,
+                name: 'Super Admin',
+                email: normalizedEmail,
+                password: await bcrypt.hash(superAdminPassword, 10),
+                role: 'SUPER_ADMIN',
+                status: 'ACTIVE'
+            }
+        });
     }
 
     const adminData = {
@@ -797,12 +1122,24 @@ export const updateUserStatus = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Status is required' });
         }
 
+        const existing = await prisma.user.findUnique({
+            where: { id }
+        });
+
+        if (!existing) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
         const dbStatus = status === 'Active' || status === 'ACTIVE' ? 'ACTIVE' : 'SUSPENDED';
 
         const updated = await prisma.user.update({
             where: { id },
             data: { status: dbStatus }
         });
+
+        if (existing.status !== updated.status) {
+            sendUserSuspensionEmail(updated.email, updated.name, updated.status);
+        }
 
         res.status(200).json({
             success: true,

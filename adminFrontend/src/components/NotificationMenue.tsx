@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Trash2, Check, BellOff, ShoppingBag, X } from 'lucide-react';
+import { Trash2, Check, BellOff, ShoppingBag, X, UserCheck } from 'lucide-react';
 
 interface Notification {
   id: string;
@@ -84,7 +84,9 @@ export default function NotificationMenu({
       onMarkAsRead(notification.id);
     }
     onClose();
-    if (notification.orderId) {
+    if (notification.type === 'ADMIN_APPROVAL') {
+      navigate('/superadmin/admins');
+    } else if (notification.orderId) {
       navigate(`${ordersPath}?orderId=${notification.orderId}`);
     } else if (notification.productId) {
       navigate(`${productsPath}?productId=${notification.productId}`);
@@ -152,7 +154,11 @@ export default function NotificationMenu({
               <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
                 notification.isRead ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
               }`}>
-                <ShoppingBag className="h-4 w-4" />
+                {notification.type === 'ADMIN_APPROVAL' ? (
+                  <UserCheck className="h-4 w-4" />
+                ) : (
+                  <ShoppingBag className="h-4 w-4" />
+                )}
               </div>
 
               {/* Text Content */}

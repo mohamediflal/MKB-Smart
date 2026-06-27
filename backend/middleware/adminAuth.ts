@@ -18,16 +18,24 @@ export default async function adminAuth(req: Request & { admin?: any }, res: Res
 	try {
 		const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload
 
-		// Super admin tokens may have role 'superadmin'
-		if (decoded.role === 'superadmin') {
-			req.admin = { id: decoded.id, email: decoded.email, isSuperAdmin: true }
-			return next()
-		}
-
 		if (!decoded.id) return res.status(401).json({ message: 'Unauthorized' })
 
 		const admin = await prisma.admin.findUnique({ where: { id: decoded.id } })
 		if (!admin) return res.status(401).json({ message: 'Unauthorized' })
+
+		if (admin.status === 'SUSPENDED') {
+			return res.status(403).json({ message: 'Your account has been suspended. If you believe this is an error or require further assistance, please contact MKB Support at mkbsmart30@gmail.com.' })
+		}
+
+		// Verify that token role matches the actual DB role.
+		// If they were promoted/demoted, the token role ('admin' or 'superadmin') will mismatch DB role.
+		const tokenRole = decoded.role; // 'admin' or 'superadmin'
+		const dbRole = admin.role; // 'ADMIN' or 'SUPER_ADMIN'
+		const expectedTokenRole = dbRole === 'SUPER_ADMIN' ? 'superadmin' : 'admin';
+
+		if (tokenRole !== expectedTokenRole) {
+			return res.status(403).json({ message: 'Your account role has been updated. Please log in again to apply changes.' })
+		}
 
 		const safeAdmin: any = { ...admin }
 		delete safeAdmin.password

@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import { registerForPushNotificationsAsync } from "../utils/pushNotifications";
 
 type UserProfile = {
@@ -77,6 +77,34 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+
+  useEffect(() => {
+    const originalFetch = global.fetch;
+    global.fetch = async (...args) => {
+      const res = await originalFetch(...args);
+      if (res.status === 403) {
+        const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+        const isLoginRequest = url.includes('/login');
+        if (!isLoginRequest) {
+          const clone = res.clone();
+          try {
+            const data = await clone.json();
+            if (data && data.message && data.message.toLowerCase().includes('suspended')) {
+              Alert.alert("Account Suspended", data.message);
+              setUser(null);
+            }
+          } catch {
+            // ignore json errors
+          }
+        }
+      }
+      return res;
+    };
+
+    return () => {
+      global.fetch = originalFetch;
+    };
+  }, [setUser]);
 
   useEffect(() => {
     if (user && user.id && user.token) {

@@ -70,9 +70,15 @@ export default function ManageAdmins() {
     }
 
     try {
-      const res = await fetch(`${base}/api/auth/admin/register`, {
+      const session = getSession();
+      const token = session?.token;
+
+      const res = await fetch(`${base}/api/auth/admin/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ name, email, password, role, status }),
       })
 
@@ -98,7 +104,7 @@ export default function ManageAdmins() {
     setSelectedAdmin(admin);
     setName(admin.name);
     setEmail(admin.email);
-    setRole(admin.role);
+    setRole(admin.role === 'super_admin' || admin.role === 'superadmin' ? 'super_admin' : 'admin');
     setStatus(admin.status || "Active");
     setShowEditModal(true);
   };
@@ -123,7 +129,8 @@ export default function ManageAdmins() {
         body: JSON.stringify({
           id: selectedAdmin.id,
           name,
-          status
+          status,
+          role
         }),
       });
 
@@ -285,8 +292,8 @@ export default function ManageAdmins() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pendingAdmins.map((admin) => (
-              <div 
-                key={admin.id} 
+              <div
+                key={admin.id}
                 className="flex flex-col justify-between p-5 rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-sm transition-all hover:shadow-md"
               >
                 <div>
@@ -404,7 +411,7 @@ export default function ManageAdmins() {
                               >
                                 <Pencil size={14} /> Edit Admin
                               </button>
-                              
+
                               <button
                                 onClick={() => {
                                   handleToggleStatus(a);
@@ -502,6 +509,7 @@ export default function ManageAdmins() {
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="admin">Admin</option>
+                  <option value="super_admin">Super Admin</option>
 
                 </select>
               </div>
@@ -573,6 +581,20 @@ export default function ManageAdmins() {
                   required
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-300 mb-1.5">Role</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="admin">admin</option>
+
+                  <option value="super_admin">super admin</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-300 mb-1.5">Status</label>
                 <select
@@ -585,6 +607,7 @@ export default function ManageAdmins() {
                   <option value="Suspended">Suspended</option>
                 </select>
               </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 mt-6">
                 <button
                   type="button"

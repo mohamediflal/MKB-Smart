@@ -162,6 +162,33 @@ function AdminLayout({ children }) {
     )
   }
 
+  if (user?.status === 'Suspended') {
+    return (
+      <main className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl text-center border border-slate-200/60 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-950/30 mb-6 border border-red-200 dark:border-red-900/40">
+            <svg className="h-8 w-8 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-950 dark:text-white mb-3">Account Suspended</h2>
+          <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed mb-8">
+            Your account has been suspended. If you believe this is an error or require further assistance, please contact MKB Support at mkbsmart30@gmail.com.
+          </p>
+          <button
+            onClick={() => {
+              localStorage.removeItem('grocery_session');
+              navigate('/');
+            }}
+            className="w-full h-12 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 hover:bg-slate-800 dark:hover:bg-slate-100 font-semibold cursor-pointer transition-colors shadow-sm"
+          >
+            Go Back
+          </button>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-background text-foreground transition-colors duration-200">
       <AdminSidebar onSignOut={() => navigate('/')} isCollapsed={!isSidebarOpen} />
