@@ -77,12 +77,25 @@ export const markAsRead = async (req: Request & { admin?: any }, res: Response) 
       return res.status(404).json({ success: false, message: 'Notification not found' });
     }
 
-    const updated = await prisma.notification.update({
-      where: { id },
+    const readAt = new Date();
+    await prisma.notification.updateMany({
+      where: {
+        target: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        orderId: notification.orderId,
+        productId: notification.productId,
+        isRead: false
+      },
       data: {
         isRead: true,
-        readAt: new Date()
+        readAt
       }
+    });
+
+    const updated = await prisma.notification.findUnique({
+      where: { id }
     });
 
     return res.status(200).json({ success: true, notification: updated });
@@ -101,16 +114,36 @@ export const markAllAsRead = async (req: Request & { admin?: any }, res: Respons
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    await prisma.notification.updateMany({
+    const unreadNotifications = await prisma.notification.findMany({
       where: {
         adminId,
-        isRead: false
-      },
-      data: {
-        isRead: true,
-        readAt: new Date()
+        isRead: false,
+        isDeleted: false
       }
     });
+
+    if (unreadNotifications.length > 0) {
+      const readAt = new Date();
+      const orConditions = unreadNotifications.map(n => ({
+        type: n.type,
+        title: n.title,
+        message: n.message,
+        orderId: n.orderId,
+        productId: n.productId
+      }));
+
+      await prisma.notification.updateMany({
+        where: {
+          target: { in: ['ADMIN', 'SUPER_ADMIN'] },
+          isRead: false,
+          OR: orConditions
+        },
+        data: {
+          isRead: true,
+          readAt
+        }
+      });
+    }
 
     return res.status(200).json({ success: true, message: 'All notifications marked as read' });
   } catch (error: any) {

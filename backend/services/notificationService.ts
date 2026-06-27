@@ -172,3 +172,50 @@ export const checkAndNotifyStock = async (productId: string) => {
     console.error('Error handling product stock check and notification:', error);
   }
 };
+
+export const handleAdminRegistration = async (newAdminId: string) => {
+  try {
+    const newAdmin = await prisma.admin.findUnique({
+      where: { id: newAdminId }
+    });
+
+    if (!newAdmin) return;
+
+    // Find all Super Admins
+    const superAdmins = await prisma.admin.findMany({
+      where: { role: 'SUPER_ADMIN' }
+    });
+
+    const title = 'New Admin Registration';
+    const message = `New admin "${newAdmin.name}" has registered and is pending approval.`;
+
+    // Create database notifications for all super admins
+    const notificationsData = superAdmins.map(sa => ({
+      type: 'ADMIN_APPROVAL' as const,
+      title,
+      message,
+      target: 'SUPER_ADMIN' as const,
+      adminId: sa.id,
+      isRead: false,
+      isDeleted: false
+    }));
+
+    if (notificationsData.length > 0) {
+      await prisma.notification.createMany({
+        data: notificationsData
+      });
+    }
+
+    // Get device tokens for Super Admins only
+    const superAdminTokens = await prisma.adminDeviceToken.findMany({
+      where: { role: 'SUPER_ADMIN' }
+    });
+
+    const tokens = superAdminTokens.map(t => t.token);
+    if (tokens.length > 0) {
+      await sendPushNotification(tokens, title, message, { type: 'ADMIN_APPROVAL' });
+    }
+  } catch (error) {
+    console.error('Error handling admin registration notification:', error);
+  }
+};
