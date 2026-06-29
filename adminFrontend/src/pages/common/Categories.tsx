@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from "react";
-import { Plus, Tag, X, ImagePlus, ShoppingCart, CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { Plus, Tag, X, ImagePlus, ShoppingCart, CheckCircle2, Pencil, Trash2, ShieldAlert } from "lucide-react";
 import { Card, PageHeader, getSession } from "../index";
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
@@ -16,6 +16,7 @@ export default function Categories() {
   const [toastMessage, setToastMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [errorModalMessage, setErrorModalMessage] = useState("");
 
   const fetchCategories = async () => {
     try {
@@ -72,7 +73,11 @@ export default function Categories() {
           setTimeout(() => setShowToast(false), 3000);
         } else {
           const errData = await res.json();
-          alert(errData.message || "Failed to delete category");
+          let msg = errData.message || "Failed to delete category";
+          if (msg.includes("violates RESTRICT setting") || msg.includes("foreign key constraint")) {
+            msg = "This category cannot be deleted because it is currently associated with one or more products. Please remove or reassign those products before deleting the category.";
+          }
+          setErrorModalMessage(msg);
         }
       } catch (err) {
         console.error("Error deleting category:", err);
@@ -282,6 +287,27 @@ export default function Categories() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      {errorModalMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[24px] w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200 p-6 text-center border border-slate-100 dark:border-slate-800">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30 mb-4">
+              <ShieldAlert className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Cannot Delete Category</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              {errorModalMessage}
+            </p>
+            <button
+              onClick={() => setErrorModalMessage("")}
+              className="w-full rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-white py-2.5 text-sm font-semibold transition-colors cursor-pointer"
+            >
+              Understand
+            </button>
           </div>
         </div>
       )}

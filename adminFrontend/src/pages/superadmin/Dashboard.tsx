@@ -15,10 +15,10 @@ const RsIcon = () => <span className="text-[11px] font-extrabold leading-none">R
 const KPIS = [
   { label: "TOTAL REVENUE", value: "Rs. 1,130.79", delta: "+12.4% MoM", icon: RsIcon, color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-500/15" },
   { label: "MONTHLY REVENUE", value: "Rs. 597.75", delta: "+6.1%", icon: TrendingUp, color: "text-sky-600 bg-sky-100 dark:bg-sky-500/15" },
-  { label: "TOTAL USERS", value: "1,044", delta: "+38 today", icon: Users, color: "text-violet-600 bg-violet-100 dark:bg-violet-500/15" },
+  { label: "TOTAL USERS", value: "1,044", delta: "+0 this month", icon: Users, color: "text-violet-600 bg-violet-100 dark:bg-violet-500/15" },
   { label: "ACTIVE USERS", value: "710", delta: "", icon: UserCheck, color: "text-teal-600 bg-teal-100 dark:bg-teal-500/15" },
   { label: "TOTAL ADMINS", value: "4", delta: "", icon: ShieldCheck, color: "text-amber-600 bg-amber-100 dark:bg-amber-500/15" },
-  { label: "TOTAL ORDERS", value: "1,148", delta: "+24 today", icon: ShoppingCart, color: "text-rose-600 bg-rose-100 dark:bg-rose-500/15" },
+  { label: "TOTAL ORDERS", value: "1,148", delta: "+0 today", icon: ShoppingCart, color: "text-rose-600 bg-rose-100 dark:bg-rose-500/15" },
 ];
 
 const PIE_COLORS = ["#15803d", "#22c55e", "#84cc16", "#f59e0b", "#3b82f6", "#ec4899"];
@@ -165,13 +165,28 @@ function SuperAdminDashboard({ onSignOut }) {
     .filter(o => new Date(o.createdAt) >= thirtyDaysAgo)
     .reduce((sum, o) => sum + (o.total || 0), 0);
 
+  // Calculate users joined this month
+  const today = new Date();
+  const yearStr = today.getFullYear().toString();
+  const monthStr = String(today.getMonth() + 1).padStart(2, '0');
+  const thisMonthPrefix = `${yearStr}-${monthStr}`; // e.g. "2026-06"
+  const usersThisMonth = dbUsers.filter(u => {
+    const dateStr = u.createdAt || u.joined;
+    return dateStr && dateStr.startsWith(thisMonthPrefix);
+  }).length;
+
+  // Calculate orders made today
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const ordersToday = dbOrders.filter(o => new Date(o.createdAt) >= todayMidnight).length;
+
   const dynamicKPIS = [
     { label: "TOTAL REVENUE", value: loading ? "..." : `Rs. ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, delta: "+12.4% MoM", icon: RsIcon, color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-500/15" },
     { label: "MONTHLY REVENUE", value: loading ? "..." : `Rs. ${monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, delta: "+6.1%", icon: TrendingUp, color: "text-sky-600 bg-sky-100 dark:bg-sky-500/15" },
-    { label: "TOTAL USERS", value: loading ? "..." : dbUsers.length.toLocaleString(), delta: "+38 today", icon: Users, color: "text-violet-600 bg-violet-100 dark:bg-violet-500/15" },
+    { label: "TOTAL USERS", value: loading ? "..." : dbUsers.length.toLocaleString(), delta: loading ? "..." : `+${usersThisMonth} this month`, icon: Users, color: "text-violet-600 bg-violet-100 dark:bg-violet-500/15" },
     { label: "ACTIVE USERS", value: loading ? "..." : dbUsers.filter(u => u.status === "Active").length.toLocaleString(), delta: "", icon: UserCheck, color: "text-teal-600 bg-teal-100 dark:bg-teal-500/15" },
     { label: "TOTAL ADMINS", value: loading ? "..." : dbAdmins.length.toLocaleString(), delta: "", icon: ShieldCheck, color: "text-amber-600 bg-amber-100 dark:bg-amber-500/15" },
-    { label: "TOTAL ORDERS", value: loading ? "..." : dbOrders.length.toLocaleString(), delta: "+24 today", icon: ShoppingCart, color: "text-rose-600 bg-rose-100 dark:bg-rose-500/15" },
+    { label: "TOTAL ORDERS", value: loading ? "..." : dbOrders.length.toLocaleString(), delta: loading ? "..." : `+${ordersToday} today`, icon: ShoppingCart, color: "text-rose-600 bg-rose-100 dark:bg-rose-500/15" },
   ];
 
   return (

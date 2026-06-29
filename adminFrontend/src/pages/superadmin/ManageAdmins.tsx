@@ -270,8 +270,19 @@ export default function ManageAdmins() {
     }
   };
 
+  const currentSession = getSession();
+  const currentUserEmail = currentSession?.email?.toLowerCase();
+
   const pendingAdmins = adminsList.filter(a => a.status === "Pending");
-  const approvedAdmins = adminsList.filter(a => a.status !== "Pending");
+  const approvedAdmins = adminsList
+    .filter(a => a.status !== "Pending")
+    .sort((a, b) => {
+      const aIsMe = a.email?.toLowerCase() === currentUserEmail;
+      const bIsMe = b.email?.toLowerCase() === currentUserEmail;
+      if (aIsMe) return -1;
+      if (bIsMe) return 1;
+      return 0;
+    });
 
   return (
     <div className="space-y-6">
@@ -364,12 +375,32 @@ export default function ManageAdmins() {
                 ) : (
                   approvedAdmins.map((a, index) => {
                     const isBottomRow = index >= approvedAdmins.length - 2 && approvedAdmins.length > 2;
+                    const isMe = a.email?.toLowerCase() === currentUserEmail;
                     return (
                       <tr key={a.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
-                        <td className="px-6 py-4 font-semibold text-slate-900 dark:text-white">{a.name}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-2">
+                            <span>{a.name}</span>
+                            {isMe && (
+                              <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-900/30 uppercase tracking-wide">
+                                You
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-slate-900 dark:text-slate-100">{a.email}</td>
                         <td className="px-6 py-4 text-slate-900 dark:text-slate-100">
-                          {a.role === "super_admin" ? "Super Admin" : "Admin"}
+                          {a.role === "super_admin" ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-800 dark:text-violet-300 px-2.5 py-1 text-xs font-bold border border-violet-200/50 dark:border-violet-900/30">
+                              <span className="h-1.5 w-1.5 rounded-full bg-violet-600 dark:bg-violet-400"></span>
+                              Super Admin
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 dark:bg-sky-950/30 text-sky-800 dark:text-sky-300 px-2.5 py-1 text-xs font-semibold border border-sky-200/40 dark:border-sky-900/20">
+                              <span className="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
+                              Admin
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-slate-900 dark:text-slate-100">
                           {a.lastActive || a.lastLogin}
@@ -384,11 +415,13 @@ export default function ManageAdmins() {
                         </td>
                         <td className="px-6 py-4 text-center relative">
                           <button
+                            disabled={isMe}
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveMenuId(activeMenuId === a.id ? null : a.id);
                             }}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer text-slate-900 hover:text-slate-700 dark:text-slate-200 dark:hover:text-slate-200 transition"
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer text-slate-900 hover:text-slate-700 dark:text-slate-200 dark:hover:text-slate-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={isMe ? "You cannot modify your own account" : "Actions"}
                           >
                             <MoreVertical size={18} />
                           </button>

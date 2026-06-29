@@ -7,6 +7,7 @@ import {
   View,
   useWindowDimensions,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,43 +27,54 @@ export default function Home() {
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
-  const { categories } = useCategories();
+  const { categories, refreshCategories } = useCategories();
   const bannerWidth = width;
 
   const [productList, setProductList] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchProducts = async (showLoadingIndicator = true) => {
+    try {
+      if (showLoadingIndicator) setLoadingProducts(true);
+      const res = await fetch(`${API_BASE_URL}/api/products/list`);
+      if (res.ok) {
+        const data = await res.json();
+        // Filter to only ACTIVE products
+        const activeOnly = data.filter((p: any) => p.status === 'ACTIVE');
+        const mapped = activeOnly.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          subtitle: `${p.unit || "piece"}, Price`,
+          price: `Rs. ${p.price}`,
+          imageSource: p.image ? { uri: p.image } : BEST_SELLING[0].imageSource,
+          category: p.category?.name || "Uncategorized",
+          stock: p.stock,
+        }));
+        setProductList(mapped);
+      } else {
+        setProductList([...BEST_SELLING, ...RECOMMENDED]);
+      }
+    } catch (err) {
+      console.error("Error fetching products in Home:", err);
+      setProductList([...BEST_SELLING, ...RECOMMENDED]);
+    } finally {
+      if (showLoadingIndicator) setLoadingProducts(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setLoadingProducts(true);
-        const res = await fetch(`${API_BASE_URL}/api/products/list`);
-        if (res.ok) {
-          const data = await res.json();
-          // Filter to only ACTIVE products
-          const activeOnly = data.filter((p: any) => p.status === 'ACTIVE');
-          const mapped = activeOnly.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            subtitle: `${p.unit || "piece"}, Price`,
-            price: `Rs. ${p.price}`,
-            imageSource: p.image ? { uri: p.image } : BEST_SELLING[0].imageSource,
-            category: p.category?.name || "Uncategorized",
-            stock: p.stock,
-          }));
-          setProductList(mapped);
-        } else {
-          setProductList([...BEST_SELLING, ...RECOMMENDED]);
-        }
-      } catch (err) {
-        console.error("Error fetching products in Home:", err);
-        setProductList([...BEST_SELLING, ...RECOMMENDED]);
-      } finally {
-        setLoadingProducts(false);
-      }
-    };
-    fetchProducts();
+    fetchProducts(true);
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      fetchProducts(false),
+      refreshCategories()
+    ]);
+    setRefreshing(false);
+  };
 
   const recommendedColumnGap = 12;
   const recommendedColumns = 2;
@@ -137,6 +149,14 @@ export default function Home() {
         className="flex-1 px-4"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 90 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#065f46"]}
+            tintColor="#065f46"
+          />
+        }
       >
 
 

@@ -647,6 +647,7 @@ export const listUsers = async (req: Request & { userId?: string }, res: Respons
                 orders: u.orders.length,
                 spent: totalSpent,
                 joined: u.createdAt.toISOString().slice(0, 10),
+                createdAt: u.createdAt,
                 status: u.status === 'ACTIVE' ? 'Active' : 'Suspended'
             };
         });
@@ -956,6 +957,23 @@ export const updateAdmin = async (req: Request & { userId?: string }, res: Respo
             return res.status(400).json({ message: 'Admin ID is required' })
         }
 
+        // Get logged in admin ID from token
+        const authHeader = req.headers.authorization;
+        let loggedInAdminId: string | undefined;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
+                loggedInAdminId = decoded.id;
+            } catch (e) {
+                // Ignore decoding error
+            }
+        }
+
+        if (loggedInAdminId === id) {
+            return res.status(400).json({ message: 'You cannot modify your own admin account.' });
+        }
+
         const existing = await prisma.admin.findUnique({
             where: { id }
         });
@@ -1021,6 +1039,23 @@ export const deleteAdmin = async (req: Request & { userId?: string }, res: Respo
 
         if (!existing) {
             return res.status(404).json({ message: 'Admin not found' })
+        }
+
+        // Get logged in admin ID from token
+        const authHeader = req.headers.authorization;
+        let loggedInAdminId: string | undefined;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
+                loggedInAdminId = decoded.id;
+            } catch (e) {
+                // Ignore decoding error
+            }
+        }
+
+        if (loggedInAdminId === id) {
+            return res.status(400).json({ message: 'You cannot delete your own admin account.' });
         }
 
         // Prevent deleting the super admin

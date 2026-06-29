@@ -247,6 +247,10 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Cannot update status of a Cancelled order.' });
     }
 
+    if (order.status === 'DELIVERED') {
+      return res.status(400).json({ success: false, message: 'Cannot update status of a Delivered order.' });
+    }
+
     // Map input status to DB enum
     let dbStatus: 'PLACED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
     let displayStatus: string;
