@@ -458,7 +458,7 @@ function Navbar({
             />
           </div>
 
-          {/* Avatar + name + chevron */}
+          {/* Avatar + name */}
           <button type="button" className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-muted cursor-pointer transition-all duration-200">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-primary-foreground">
               {avatarText}
@@ -467,9 +467,6 @@ function Navbar({
               <div className="text-[14px] font-semibold text-foreground">{name}</div>
               <div className="text-[12px] text-muted-foreground">{email}</div>
             </div>
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-muted-foreground" aria-hidden="true">
-              <path d="m7 10 5 5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
           </button>
         </div>
       </header>

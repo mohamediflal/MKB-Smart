@@ -138,11 +138,11 @@ export default function Login() {
 
 					</View>
 
-					<View style={{ alignItems: 'center', marginTop: 14 }}>
-						<Text style={{ color: '#6b7280' }}>
-							Don't have an account?{' '}
-							<Pressable onPress={() => router.push('/register')}><Text style={{ color: '#006c49', fontWeight: '700' }}>Create Account</Text></Pressable>
-						</Text>
+					<View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 14 }}>
+						<Text style={{ color: '#6b7280' }}>Don't have an account? </Text>
+						<Pressable onPress={() => router.push('/register')}>
+							<Text style={{ color: '#006c49', fontWeight: '700' }}>Create Account</Text>
+						</Pressable>
 					</View>
 				</View>
 			</ScrollView>
