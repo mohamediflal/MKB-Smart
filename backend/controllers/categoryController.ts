@@ -157,6 +157,18 @@ export const deleteCategory = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Category not found' });
     }
 
+    // Check if category is associated with any products
+    const productCount = await prisma.product.count({
+      where: { categoryId: id }
+    });
+
+    if (productCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This category cannot be deleted because it is currently associated with one or more products. Please remove or reassign those products before deleting the category.'
+      });
+    }
+
     await prisma.category.delete({
       where: { id }
     });

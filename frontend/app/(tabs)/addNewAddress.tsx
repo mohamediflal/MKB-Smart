@@ -123,7 +123,7 @@ export default function AddNewAddressScreen() {
         <ScrollView
           className="flex-1"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 22, paddingBottom: 180 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 22, paddingBottom: 40 }}
         >
           <View className="mb-6 overflow-hidden rounded-[22px] border border-[#bfcaba] bg-white shadow-sm" style={{ shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }}>
             <View className="relative h-40 overflow-hidden bg-[#e5eadf]">
@@ -171,7 +171,7 @@ export default function AddNewAddressScreen() {
               label="Phone Number"
               value={phone}
               onChangeText={setPhone}
-              placeholder="+1 (555) 000-0000"
+              placeholder="07x xxx xxxx"
               keyboardType="phone-pad"
               icon="call"
             />
@@ -189,15 +189,15 @@ export default function AddNewAddressScreen() {
             <View className="flex-row gap-3">
 
               <View className="flex-1">
-                <InputField label="City" value={city} onChangeText={setCity} placeholder="e.g. Brooklyn" />
+                <InputField label="City" value={city} onChangeText={setCity} placeholder="e.g. Passara" />
               </View>
               <View className="flex-1">
-                <InputField label="Postal Code" value={postalCode} onChangeText={setPostalCode} placeholder="11201" />
+                <InputField label="Postal Code" value={postalCode} onChangeText={setPostalCode} placeholder="90100" />
               </View>
             </View>
 
             <View className="flex-1">
-              <InputField label="District" value={district} onChangeText={setDistrict} placeholder="e.g. Brooklyn" />
+              <InputField label="District" value={district} onChangeText={setDistrict} placeholder="e.g. Badulla" />
             </View>
 
             <View className="flex-row items-center justify-between rounded-[22px] border border-[#bfcaba] bg-[#f1f5eb] px-4 py-4">
@@ -213,35 +213,35 @@ export default function AddNewAddressScreen() {
 
               <Pressable
                 onPress={() => setIsPrimary((value) => !value)}
-                className={`h-8 w-14 rounded-full border p-0.5 ${isPrimary ? "border-[#0d631b] bg-[#0d631b]" : "border-[#bfcaba] bg-[#d7dbd2]"}`}
+                className={`h-8 w-14 rounded-full border p-0.5 flex-row items-center ${isPrimary ? "border-[#0d631b] bg-[#0d631b] justify-end" : "border-[#bfcaba] bg-[#d7dbd2] justify-start"}`}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: isPrimary }}
                 accessibilityLabel="Set as primary"
               >
-                <View className={`h-7 w-7 rounded-full bg-white ${isPrimary ? "ml-auto" : "ml-0"}`} />
+                <View className="h-6 w-6 rounded-full bg-white" />
+              </Pressable>
+            </View>
+
+            <View className="mt-4">
+              <Pressable
+                onPress={handleSave}
+                disabled={!canSave || isSaving}
+                className={`rounded-xl py-4 ${canSave && !isSaving ? "bg-[#2e7d32]" : "bg-[#8fb494]"}`}
+                accessibilityRole="button"
+                accessibilityLabel="Save address"
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-center text-[16px] font-bold text-white">
+                    {isEditing ? "Update Address" : "Save Address"}
+                  </Text>
+                )}
               </Pressable>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <View className="absolute left-4 right-4 rounded-2xl border border-[#bfcaba] bg-[#f7fbf0] px-4 pb-4 pt-4 shadow-lg" style={{ bottom: 112, elevation: 6, zIndex: 20 }}>
-        <Pressable
-          onPress={handleSave}
-          disabled={!canSave || isSaving}
-          className={`rounded-xl py-4 ${canSave && !isSaving ? "bg-[#2e7d32]" : "bg-[#8fb494]"}`}
-          accessibilityRole="button"
-          accessibilityLabel="Save address"
-        >
-          {isSaving ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-center text-[16px] font-bold text-white">
-              {isEditing ? "Update Address" : "Save Address"}
-            </Text>
-          )}
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 }

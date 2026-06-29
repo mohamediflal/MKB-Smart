@@ -112,7 +112,7 @@ export default function Register() {
 				</View>
 
 				<View style={{ alignItems: 'center', marginBottom: 8 }}>
-					<Text style={{ fontSize: 20, fontWeight: '700', color: '#006d37' }}>FreshMart</Text>
+					<Text style={{ fontSize: 20, fontWeight: '700', color: '#006d37' }}>MKB-Smart</Text>
 				</View>
 
 				<View style={{ alignItems: 'center', marginBottom: 14 }}>
@@ -185,17 +185,15 @@ export default function Register() {
 
 				</View>
 
-				<View style={{ alignItems: 'center', marginTop: 20, marginBottom: 40 }}>
-					<Text style={{ color: '#3d4a3e' }}>
-						Already have an account?{' '}
-						<Pressable
-							onPress={() =>
-								router.replace({ pathname: '/login', params: { returnTo: params.returnTo ?? '/' } })
-							}
-						>
-							<Text style={{ color: '#006d37', fontWeight: '700' }}>Login</Text>
-						</Pressable>
-					</Text>
+				<View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20, marginBottom: 40 }}>
+					<Text style={{ color: '#3d4a3e' }}>Already have an account? </Text>
+					<Pressable
+						onPress={() =>
+							router.replace({ pathname: '/login', params: { returnTo: params.returnTo ?? '/' } })
+						}
+					>
+						<Text style={{ color: '#006d37', fontWeight: '700' }}>Login</Text>
+					</Pressable>
 				</View>
 			</ScrollView>
 		</KeyboardAvoidingView>

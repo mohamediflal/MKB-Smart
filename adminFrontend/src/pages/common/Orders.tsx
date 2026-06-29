@@ -727,7 +727,7 @@ export default function Orders() {
                 <select
                   value={selectedOrder.status}
                   onChange={(e) => handleStatusChange(selectedOrder.id, e.target.value)}
-                  disabled={selectedOrder.status === "Cancelled" || selectedOrder.status === "Pending"}
+                  disabled={selectedOrder.status === "Cancelled" || selectedOrder.status === "Pending" || selectedOrder.status === "Delivered"}
                   className="rounded-xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 px-3 py-2 text-sm outline-none cursor-pointer focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {STATUSES.filter(s => s !== "All" && (s !== "Cancelled" || selectedOrder.status === "Cancelled") && (s !== "Pending" || selectedOrder.status === "Pending")).map((status) => (
