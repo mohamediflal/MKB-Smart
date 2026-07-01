@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma.js';
-import { handleOrderStatusChange } from '../services/notificationService.js';
+import { handleOrderStatusChange, checkAndNotifyStock } from '../services/notificationService.js';
 
 // Helper to map DB order to client format
 const formatOrder = (order: any) => {
@@ -85,22 +85,65 @@ export const placeOrder = async (req: Request & { userId?: string }, res: Respon
       return res.status(400).json({ success: false, message: 'Required fields missing: items, shippingAddress, subtotal, total' });
     }
 
-    const order = await prisma.order.create({
-      data: {
-        userId,
-        items,
-        shippingAddress,
-        paymentMethod: 'CASH_ON_DELIVERY',
-        subtotal: Number(subtotal),
-        deliveryFee: Number(deliveryFee || 0),
-        total: Number(total),
-        status: 'PLACED',
-        statusHistory: [
-          { status: 'Pending', timestamp: new Date().toISOString(), message: 'Order placed using Cash on Delivery (Pending Verification)' }
-        ],
-        isPaid: false
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Items must be a valid array' });
+    }
+
+    const order = await prisma.$transaction(async (tx) => {
+      // Deduct stock for each item
+      for (const item of items) {
+        if (!item.id || item.quantity === undefined) {
+          throw new Error('Invalid item structure in order');
+        }
+
+        const product = await tx.product.findUnique({
+          where: { id: item.id }
+        });
+
+        if (!product) {
+          throw new Error(`Product not found: ${item.name || item.id}`);
+        }
+
+        const currentStock = product.stock ?? 0;
+        if (currentStock < item.quantity) {
+          throw new Error(`Insufficient stock for product "${product.name}". Available: ${currentStock}, Ordered: ${item.quantity}`);
+        }
+
+        await tx.product.update({
+          where: { id: item.id },
+          data: {
+            stock: {
+              decrement: item.quantity
+            }
+          }
+        });
       }
+
+      // Create order
+      return await tx.order.create({
+        data: {
+          userId,
+          items,
+          shippingAddress,
+          paymentMethod: 'CASH_ON_DELIVERY',
+          subtotal: Number(subtotal),
+          deliveryFee: Number(deliveryFee || 0),
+          total: Number(total),
+          status: 'PLACED',
+          statusHistory: [
+            { status: 'Pending', timestamp: new Date().toISOString(), message: 'Order placed using Cash on Delivery (Pending Verification)' }
+          ],
+          isPaid: false
+        }
+      });
     });
+
+    // Run stock notifications asynchronously
+    for (const item of items) {
+      checkAndNotifyStock(item.id).catch((err) => {
+        console.error(`Error checking/notifying stock for product ${item.id}:`, err);
+      });
+    }
 
     // Delay notifications by 1 minute (Pending status duration)
     setTimeout(async () => {
@@ -119,7 +162,9 @@ export const placeOrder = async (req: Request & { userId?: string }, res: Respon
     return res.status(201).json({ success: true, message: 'Order placed successfully', order: formatOrder(order) });
   } catch (error: any) {
     console.error('Place Order Error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    const isValidationError = error.message?.includes('Insufficient stock') || error.message?.includes('Product not found') || error.message?.includes('Invalid item structure');
+    const statusCode = isValidationError ? 400 : 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Internal server error' });
   }
 };
 
@@ -137,22 +182,65 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
       return res.status(400).json({ success: false, message: 'Required fields missing: items, shippingAddress, subtotal, total' });
     }
 
-    const order = await prisma.order.create({
-      data: {
-        userId,
-        items,
-        shippingAddress,
-        paymentMethod: 'CARD',
-        subtotal: Number(subtotal),
-        deliveryFee: Number(deliveryFee || 0),
-        total: Number(total),
-        status: 'PLACED',
-        statusHistory: [
-          { status: 'Pending', timestamp: new Date().toISOString(), message: 'Order placed and paid using Card (Pending Verification)' }
-        ],
-        isPaid: true
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Items must be a valid array' });
+    }
+
+    const order = await prisma.$transaction(async (tx) => {
+      // Deduct stock for each item
+      for (const item of items) {
+        if (!item.id || item.quantity === undefined) {
+          throw new Error('Invalid item structure in order');
+        }
+
+        const product = await tx.product.findUnique({
+          where: { id: item.id }
+        });
+
+        if (!product) {
+          throw new Error(`Product not found: ${item.name || item.id}`);
+        }
+
+        const currentStock = product.stock ?? 0;
+        if (currentStock < item.quantity) {
+          throw new Error(`Insufficient stock for product "${product.name}". Available: ${currentStock}, Ordered: ${item.quantity}`);
+        }
+
+        await tx.product.update({
+          where: { id: item.id },
+          data: {
+            stock: {
+              decrement: item.quantity
+            }
+          }
+        });
       }
+
+      // Create order
+      return await tx.order.create({
+        data: {
+          userId,
+          items,
+          shippingAddress,
+          paymentMethod: 'CARD',
+          subtotal: Number(subtotal),
+          deliveryFee: Number(deliveryFee || 0),
+          total: Number(total),
+          status: 'PLACED',
+          statusHistory: [
+            { status: 'Pending', timestamp: new Date().toISOString(), message: 'Order placed and paid using Card (Pending Verification)' }
+          ],
+          isPaid: true
+        }
+      });
     });
+
+    // Run stock notifications asynchronously
+    for (const item of items) {
+      checkAndNotifyStock(item.id).catch((err) => {
+        console.error(`Error checking/notifying stock for product ${item.id}:`, err);
+      });
+    }
 
     // Delay notifications by 1 minute (Pending status duration)
     setTimeout(async () => {
@@ -171,7 +259,9 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
     return res.status(201).json({ success: true, message: 'Order placed successfully', order: formatOrder(order) });
   } catch (error: any) {
     console.error('Place Card Order Error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Internal server error' });
+    const isValidationError = error.message?.includes('Insufficient stock') || error.message?.includes('Product not found') || error.message?.includes('Invalid item structure');
+    const statusCode = isValidationError ? 400 : 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Internal server error' });
   }
 };
 
@@ -347,13 +437,44 @@ export const cancelUserOrder = async (req: Request & { userId?: string }, res: R
       { status: 'Cancelled', timestamp: new Date().toISOString(), message: 'Order cancelled by customer' }
     ];
 
-    const updated = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: 'CANCELLED',
-        statusHistory: updatedHistory
+    const updated = await prisma.$transaction(async (tx) => {
+      // Replenish stock for each item in the order
+      const orderItems = order.items as any;
+      if (Array.isArray(orderItems)) {
+        for (const item of orderItems) {
+          if (item.id && item.quantity) {
+            await tx.product.update({
+              where: { id: item.id },
+              data: {
+                stock: {
+                  increment: item.quantity
+                }
+              }
+            });
+          }
+        }
       }
+
+      return await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'CANCELLED',
+          statusHistory: updatedHistory
+        }
+      });
     });
+
+    // Run stock notifications asynchronously for replenishment checks
+    const orderItems = order.items as any;
+    if (Array.isArray(orderItems)) {
+      for (const item of orderItems) {
+        if (item.id) {
+          checkAndNotifyStock(item.id).catch((err) => {
+            console.error(`Error checking/notifying stock replenishment for product ${item.id}:`, err);
+          });
+        }
+      }
+    }
 
     return res.status(200).json({ success: true, message: 'Order cancelled successfully', order: formatOrder(updated) });
   } catch (error: any) {

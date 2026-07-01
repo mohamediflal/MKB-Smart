@@ -23,6 +23,7 @@ type DisplayProduct = {
   categorySlug?: string;
   stock?: number;
   status?: string;
+  description?: string;
 };
 
 function inferCategorySlug(
@@ -108,6 +109,7 @@ export default function ProductDetailsScreen() {
             categorySlug: p.category?.slug || "",
             stock: p.stock ?? 0,
             status: p.status || "ACTIVE",
+            description: p.description || "",
           });
         } else {
           setDbProduct(null);
@@ -422,7 +424,7 @@ export default function ProductDetailsScreen() {
         <View className="mx-4 mt-3 rounded-3xl border border-slate-200 bg-white px-4 py-5 shadow-sm">
           <Text className="text-base font-extrabold tracking-tight text-slate-900">Product Detail</Text>
           <Text className="mt-2.5 text-sm leading-6 text-slate-600">
-            Apples are nutritious and naturally delicious. Enjoy as a healthy snack or add to meals for extra freshness.
+            {product?.description || `${product?.name} is nutritious and naturally delicious. Enjoy as a healthy snack or add to meals for extra freshness.`}
           </Text>
         </View>
 
