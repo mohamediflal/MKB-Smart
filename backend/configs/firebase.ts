@@ -1,14 +1,15 @@
-import admin from 'firebase-admin';
+import { initializeApp, cert, App } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import 'dotenv/config';
 
-let firebaseApp: admin.app.App | null = null;
+let firebaseApp: App | null = null;
 
 try {
   const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccountVar) {
     const serviceAccount = JSON.parse(serviceAccountVar);
-    firebaseApp = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+    firebaseApp = initializeApp({
+      credential: cert(serviceAccount)
     });
     console.log('Firebase Admin SDK initialized using environment variable');
   } else {
@@ -33,7 +34,7 @@ export const sendPushNotification = async (tokens: string[], title: string, body
   }
 
   try {
-    const response = await firebaseApp.messaging().sendEachForMulticast({
+    const response = await getMessaging(firebaseApp).sendEachForMulticast({
       tokens: validTokens,
       notification: {
         title,
