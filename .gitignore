@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Expo cache and temporary test files
+.expo/
+_tmp_*
+backend/services/AiModel.jsx
+backend/testNvidia.ts
+

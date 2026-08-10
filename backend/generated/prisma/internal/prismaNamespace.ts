@@ -393,7 +393,8 @@ export const ModelName = {
   Order: 'Order',
   Notification: 'Notification',
   UserDeviceToken: 'UserDeviceToken',
-  AdminDeviceToken: 'AdminDeviceToken'
+  AdminDeviceToken: 'AdminDeviceToken',
+  RecipeHistory: 'RecipeHistory'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -409,7 +410,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "admin" | "category" | "address" | "product" | "favorite" | "order" | "notification" | "userDeviceToken" | "adminDeviceToken"
+    modelProps: "user" | "admin" | "category" | "address" | "product" | "favorite" | "order" | "notification" | "userDeviceToken" | "adminDeviceToken" | "recipeHistory"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1153,6 +1154,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    RecipeHistory: {
+      payload: Prisma.$RecipeHistoryPayload<ExtArgs>
+      fields: Prisma.RecipeHistoryFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RecipeHistoryFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RecipeHistoryFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>
+        }
+        findFirst: {
+          args: Prisma.RecipeHistoryFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RecipeHistoryFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>
+        }
+        findMany: {
+          args: Prisma.RecipeHistoryFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>[]
+        }
+        create: {
+          args: Prisma.RecipeHistoryCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>
+        }
+        createMany: {
+          args: Prisma.RecipeHistoryCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RecipeHistoryCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>[]
+        }
+        delete: {
+          args: Prisma.RecipeHistoryDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>
+        }
+        update: {
+          args: Prisma.RecipeHistoryUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>
+        }
+        deleteMany: {
+          args: Prisma.RecipeHistoryDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RecipeHistoryUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RecipeHistoryUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>[]
+        }
+        upsert: {
+          args: Prisma.RecipeHistoryUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RecipeHistoryPayload>
+        }
+        aggregate: {
+          args: Prisma.RecipeHistoryAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRecipeHistory>
+        }
+        groupBy: {
+          args: Prisma.RecipeHistoryGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RecipeHistoryGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RecipeHistoryCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RecipeHistoryCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1289,6 +1364,7 @@ export const OrderScalarFieldEnum = {
   items: 'items',
   shippingAddress: 'shippingAddress',
   paymentMethod: 'paymentMethod',
+  paymentStatus: 'paymentStatus',
   subtotal: 'subtotal',
   deliveryFee: 'deliveryFee',
   total: 'total',
@@ -1343,6 +1419,19 @@ export const AdminDeviceTokenScalarFieldEnum = {
 } as const
 
 export type AdminDeviceTokenScalarFieldEnum = (typeof AdminDeviceTokenScalarFieldEnum)[keyof typeof AdminDeviceTokenScalarFieldEnum]
+
+
+export const RecipeHistoryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  recipeName: 'recipeName',
+  quantityType: 'quantityType',
+  quantityValue: 'quantityValue',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type RecipeHistoryScalarFieldEnum = (typeof RecipeHistoryScalarFieldEnum)[keyof typeof RecipeHistoryScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1699,6 +1788,7 @@ export type GlobalOmitConfig = {
   notification?: Prisma.NotificationOmit
   userDeviceToken?: Prisma.UserDeviceTokenOmit
   adminDeviceToken?: Prisma.AdminDeviceTokenOmit
+  recipeHistory?: Prisma.RecipeHistoryOmit
 }
 
 /* Types for Logging */

@@ -72,6 +72,7 @@ model User {
   favorites Favorite[]
   notifications Notification[]
   deviceTokens UserDeviceToken[]
+  recipeHistories RecipeHistory[]
 
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
@@ -181,6 +182,7 @@ model Order {
   shippingAddress   Json
 
   paymentMethod     PaymentMethod  @default(CARD)
+  paymentStatus     String?
 
   subtotal          Float
   deliveryFee       Float?     @default(0)
@@ -255,4 +257,19 @@ model AdminDeviceToken {
   admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
+}
+
+model RecipeHistory {
+  id            String   @id @default(uuid())
+  userId        String
+  recipeName    String
+  quantityType  String
+  quantityValue String
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

@@ -9,6 +9,7 @@ import addressRouter from './routes/addressRoute.js';
 import categoryRouter from './routes/categoryRoute.js';
 import favoriteRouter from './routes/favoriteRoute.js';
 import notificationRouter from './routes/notificationRoute.js';
+import aiRouter from './routes/aiRoute.js';
 
 
 const app = express();
@@ -29,6 +30,8 @@ app.use('/api/address', addressRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/favorites', favoriteRouter);
 app.use('/api/notifications', notificationRouter);
+app.use('/api/ai', aiRouter);
+
 
 
 //Error handling

@@ -187,7 +187,7 @@ export default function Home() {
               className="flex-row items-center justify-between bg-green-800 active:bg-green-900 rounded-2xl py-3 px-5 shadow-sm shadow-green-700/20"
             >
               <View className="flex-row items-center">
-                <Animated.View 
+                <Animated.View
                   className="mr-3 h-8 w-8 items-center justify-center rounded-xl bg-white/10"
                   style={{ transform: [{ scale: sparkleScale }] }}
                 >
@@ -197,7 +197,7 @@ export default function Home() {
                   Shop Now
                 </Text>
               </View>
-              <Animated.View 
+              <Animated.View
                 className="h-8 w-8 items-center justify-center rounded-full bg-white/20"
                 style={{ transform: [{ translateX: arrowTranslateX }] }}
               >
@@ -207,7 +207,7 @@ export default function Home() {
           </Animated.View>
         </View>
 
-        
+
 
         {/* Categories */}
         <View className="mb-6">

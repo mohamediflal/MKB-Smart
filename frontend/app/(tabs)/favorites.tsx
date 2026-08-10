@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { ScrollView, Text, useWindowDimensions, View, ActivityIndicator } from "react-native";
+import { ScrollView, Text, useWindowDimensions, View, ActivityIndicator, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import ProductCard from "@/components/ProductCard";
@@ -82,13 +83,19 @@ export default function FavoritesScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      <View className="bg-white px-5 pt-6 pb-4 border-b border-slate-100">
+      <View className="flex-row items-center justify-between bg-white px-5 pt-6 pb-4 border-b border-slate-100">
         <View className="flex-row items-center">
           <View className="mr-3 ml-2 h-8 w-1 rounded-full bg-green-700" />
           <Text className="text-[28px] font-black tracking-tight text-slate-900">
             Favourite
           </Text>
         </View>
+        <Pressable
+          onPress={() => router.push({ pathname: "/notificationPop", params: { returnTo: "/favorites" } })}
+          className="h-10 w-10 items-center justify-center rounded-full bg-[#f4f7f4] active:bg-slate-100 border border-slate-200"
+        >
+          <Ionicons name="notifications-outline" size={20} color="#0d631b" />
+        </Pressable>
       </View>
 
       {loading ? (
