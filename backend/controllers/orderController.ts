@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma.js';
 import { handleOrderStatusChange, checkAndNotifyStock } from '../services/notificationService.js';
+import { stripe } from '../configs/stripe.js';
+
 
 // Helper to map DB order to client format
 const formatOrder = (order: any) => {
@@ -176,16 +178,46 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const { items, shippingAddress, subtotal, deliveryFee, total } = req.body;
+    const { items, shippingAddress, subtotal, deliveryFee, total, paymentIntentId } = req.body;
 
-    if (!items || !shippingAddress || subtotal === undefined || total === undefined) {
-      return res.status(400).json({ success: false, message: 'Required fields missing: items, shippingAddress, subtotal, total' });
+    if (!items || !shippingAddress || subtotal === undefined || total === undefined || !paymentIntentId) {
+      return res.status(400).json({ success: false, message: 'Required fields missing: items, shippingAddress, subtotal, total, paymentIntentId' });
     }
 
     if (!Array.isArray(items)) {
       return res.status(400).json({ success: false, message: 'Items must be a valid array' });
     }
 
+    // 1. Verify payment with Stripe
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (!paymentIntent) {
+      return res.status(404).json({ success: false, message: 'Payment intent not found in Stripe' });
+    }
+
+    if (paymentIntent.status !== 'succeeded') {
+      return res.status(400).json({ success: false, message: `Payment is not successful. Current status: ${paymentIntent.status}` });
+    }
+
+    // Verify amount matches (with minor tolerance for rounding)
+    const stripeAmount = paymentIntent.amount;
+    const expectedAmount = Math.round(Number(total) * 100);
+    if (Math.abs(stripeAmount - expectedAmount) > 10) { // allowance of 10 cents
+      return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
+    }
+
+    // 2. Prevent double-placing for the same payment intent
+    const existingOrders = await prisma.order.findMany({
+      where: { userId }
+    });
+    const isIntentUsed = existingOrders.some((ord: any) => {
+      const history = Array.isArray(ord.statusHistory) ? ord.statusHistory : [];
+      return history.some((h: any) => h.paymentIntentId === paymentIntentId);
+    });
+    if (isIntentUsed) {
+      return res.status(400).json({ success: false, message: 'This payment has already been used for an order' });
+    }
+
+    // 3. Create the order & deduct stock
     const order = await prisma.$transaction(async (tx) => {
       // Deduct stock for each item
       for (const item of items) {
@@ -228,7 +260,12 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
           total: Number(total),
           status: 'PLACED',
           statusHistory: [
-            { status: 'Pending', timestamp: new Date().toISOString(), message: 'Order placed and paid using Card (Pending Verification)' }
+            { 
+              status: 'Placed', 
+              timestamp: new Date().toISOString(), 
+              message: 'Order paid successfully using Card.',
+              paymentIntentId: paymentIntentId
+            }
           ],
           isPaid: true
         }
@@ -242,7 +279,7 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
       });
     }
 
-    // Delay notifications by 1 minute (Pending status duration)
+    // Delay notifications by a brief moment
     setTimeout(async () => {
       try {
         const currentOrder = await prisma.order.findUnique({
@@ -254,7 +291,7 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
       } catch (err) {
         console.error('Error in delayed notification trigger:', err);
       }
-    }, 60000);
+    }, 1000);
 
     return res.status(201).json({ success: true, message: 'Order placed successfully', order: formatOrder(order) });
   } catch (error: any) {
@@ -264,6 +301,68 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
     return res.status(statusCode).json({ success: false, message: error.message || 'Internal server error' });
   }
 };
+
+// Create Stripe PaymentIntent
+export const createPaymentIntent = async (req: Request & { userId?: string }, res: Response) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { items, subtotal, deliveryFee, total } = req.body;
+
+    if (!items || subtotal === undefined || total === undefined) {
+      return res.status(400).json({ success: false, message: 'Required fields missing: items, subtotal, total' });
+    }
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Items must be a valid array' });
+    }
+
+    // Check stock for all items
+    for (const item of items) {
+      if (!item.id || item.quantity === undefined) {
+        return res.status(400).json({ success: false, message: 'Invalid item structure in order' });
+      }
+
+      const product = await prisma.product.findUnique({
+        where: { id: item.id }
+      });
+
+      if (!product) {
+        return res.status(404).json({ success: false, message: `Product not found: ${item.name || item.id}` });
+      }
+
+      const currentStock = product.stock ?? 0;
+      if (currentStock < item.quantity) {
+        return res.status(400).json({ success: false, message: `Insufficient stock for product "${product.name}". Available: ${currentStock}, Ordered: ${item.quantity}` });
+      }
+    }
+
+    // Stripe expects amount in cents/smallest currency unit
+    // Since our currency is LKR, it is 100 cents per LKR.
+    const amountInCents = Math.round(Number(total) * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: 'lkr',
+      metadata: {
+        userId,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id
+    });
+  } catch (error: any) {
+    console.error('Create Payment Intent Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to create payment intent' });
+  }
+};
+
 
 // get all orders for a user
 export const getUserOrders = async (req: Request & { userId?: string }, res: Response) => {

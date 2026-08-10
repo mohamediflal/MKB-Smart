@@ -11,10 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useStripe } from "@stripe/stripe-react-native";
 
 import { useCart } from "@/context/CartContext";
 import { useAddresses } from "@/context/AddressContext";
 import { useAuth, API_BASE_URL } from "@/context/AuthContext";
+
 
 const DELIVERY_FEE = 150;
 const DISCOUNT = 0;
@@ -104,6 +106,7 @@ export default function CheckoutScreen() {
 	const { cartItems, clearCart } = useCart();
 	const { addresses, updateAddress } = useAddresses();
 	const { user } = useAuth();
+	const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
 	const [paymentMethod, setPaymentMethod] = useState<"card" | "cod">("card");
 	const [showAddressDropdown, setShowAddressDropdown] = useState(false);
@@ -160,40 +163,132 @@ export default function CheckoutScreen() {
 
 		setIsPlacing(true);
 
-		const endpoint = paymentMethod === "cod"
-			? `${API_BASE_URL}/api/orders/place`
-			: `${API_BASE_URL}/api/orders/place-card`;
+		if (paymentMethod === "cod") {
+			try {
+				const response = await fetch(`${API_BASE_URL}/api/orders/place`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${user.token}`,
+					},
+					body: JSON.stringify({
+						items: cartItems,
+						shippingAddress: primaryAddress,
+						subtotal,
+						deliveryFee: DELIVERY_FEE,
+						total,
+					}),
+				});
 
-		try {
-			const response = await fetch(endpoint, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${user.token}`,
-				},
-				body: JSON.stringify({
-					items: cartItems,
-					shippingAddress: primaryAddress,
-					subtotal,
-					deliveryFee: DELIVERY_FEE,
-					total,
-				}),
-			});
+				const data = await response.json();
 
-			const data = await response.json();
+				if (!response.ok || !data.success) {
+					Alert.alert("Order Failed", data.message || "Failed to place your order. Please try again.");
+					return;
+				}
 
-			if (!response.ok || !data.success) {
-				Alert.alert("Order Failed", data.message || "Failed to place your order. Please try again.");
-				return;
+				setCreatedOrder(data.order);
+				setIsSuccessModalVisible(true);
+			} catch (error: any) {
+				console.error("Place Order Error:", error);
+				Alert.alert("Network Error", "Unable to connect to the server. Please check your internet connection.");
+			} finally {
+				setIsPlacing(false);
 			}
+		} else {
+			try {
+				// 1. Create PaymentIntent on the backend
+				const intentResponse = await fetch(`${API_BASE_URL}/api/orders/create-payment-intent`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${user.token}`,
+					},
+					body: JSON.stringify({
+						items: cartItems,
+						subtotal,
+						deliveryFee: DELIVERY_FEE,
+						total,
+					}),
+				});
 
-			setCreatedOrder(data.order);
-			setIsSuccessModalVisible(true);
-		} catch (error: any) {
-			console.error("Place Order Error:", error);
-			Alert.alert("Network Error", "Unable to connect to the server. Please check your internet connection.");
-		} finally {
-			setIsPlacing(false);
+				const intentData = await intentResponse.json();
+
+				if (!intentResponse.ok || !intentData.success) {
+					Alert.alert("Payment Setup Failed", intentData.message || "Failed to initiate payment sheet. Please try again.");
+					setIsPlacing(false);
+					return;
+				}
+
+				const { clientSecret, paymentIntentId } = intentData;
+
+				// 2. Initialize the native Stripe Payment Sheet
+				const { error: initError } = await initPaymentSheet({
+					paymentIntentClientSecret: clientSecret,
+					merchantDisplayName: "MKB Smart Store",
+					defaultBillingDetails: {
+						name: primaryAddress.fullName,
+						phone: primaryAddress.phone || undefined,
+						address: {
+							city: primaryAddress.city,
+							country: "LK",
+							line1: primaryAddress.street,
+							postalCode: primaryAddress.postalCode,
+						}
+					}
+				});
+
+				if (initError) {
+					Alert.alert("Payment Setup Error", initError.message);
+					setIsPlacing(false);
+					return;
+				}
+
+				// 3. Present the Payment Sheet
+				const { error: presentError } = await presentPaymentSheet();
+
+				if (presentError) {
+					if (presentError.code === "Canceled") {
+						console.log("Stripe Payment Sheet Canceled by User");
+					} else {
+						Alert.alert("Payment Failed", presentError.message);
+					}
+					setIsPlacing(false);
+					return;
+				}
+
+				// 4. Place the order with verified payment ID on the backend
+				const orderResponse = await fetch(`${API_BASE_URL}/api/orders/place-card`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${user.token}`,
+					},
+					body: JSON.stringify({
+						items: cartItems,
+						shippingAddress: primaryAddress,
+						subtotal,
+						deliveryFee: DELIVERY_FEE,
+						total,
+						paymentIntentId,
+					}),
+				});
+
+				const orderData = await orderResponse.json();
+
+				if (!orderResponse.ok || !orderData.success) {
+					Alert.alert("Order Completed but Failed to Save", orderData.message || "Your payment succeeded but we failed to register the order. Please contact support.");
+					return;
+				}
+
+				setCreatedOrder(orderData.order);
+				setIsSuccessModalVisible(true);
+			} catch (error: any) {
+				console.error("Card Payment Place Order Error:", error);
+				Alert.alert("Connection Error", "An error occurred while completing payment. Please check your internet connection.");
+			} finally {
+				setIsPlacing(false);
+			}
 		}
 	};
 

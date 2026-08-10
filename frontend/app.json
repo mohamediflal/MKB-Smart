@@ -50,6 +50,10 @@
         }
       ],
       [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.mkbsmart",
+          "enableGooglePay": false
         "expo-speech-recognition",
         {
           "microphonePermission": "Allow MKB Smart to use the microphone for voice search.",
