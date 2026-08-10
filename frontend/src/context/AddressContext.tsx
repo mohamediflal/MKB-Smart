@@ -55,6 +55,10 @@ export function AddressProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setAddresses([]);
+          return;
+        }
         console.error("syncAddresses failed:", response.status);
         return;
       }

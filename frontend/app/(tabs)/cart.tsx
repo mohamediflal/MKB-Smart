@@ -12,6 +12,7 @@ import { Image } from "expo-image";
 import { usePathname, useRouter } from "expo-router";
 import { useCart } from "@/context/CartContext";
 import { resolveImageSource } from "@/utils/resolveImageSource";
+import { AIVoiceShoppingAssistant } from "@/components/AIVoiceShoppingAssistant";
 
 const DELIVERY_FEE = 150;
 
@@ -400,7 +401,7 @@ export default function CartScreen() {
 
 
 
-        <View className="mt-5 mb-20 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <View className="mt-5 mb-3 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm">
           <Text className="text-xl font-extrabold tracking-tight text-slate-900">Order Summary</Text>
 
           <View className="mt-4 gap-3">
@@ -425,6 +426,11 @@ export default function CartScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Fixed / Sticky AI Voice Shopping Assistant (remains fixed above Proceed to Checkout bar, does NOT scroll) */}
+      <View className="absolute bottom-[170px] mb-2 right-4 z-20 items-end pointer-events-box-none">
+        <AIVoiceShoppingAssistant />
+      </View>
 
       <View className="absolute bottom-24 left-0 right-0 border-t border-slate-200/80 bg-white px-4 pb-8 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
         <Pressable
