@@ -28,8 +28,9 @@ type AuthContextValue = {
 };
 
 const getApiBaseUrl = () => {
-  // First, prefer an explicit env/config value so `userFrontend/.env` can control the host.
-  const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.VITE_BACKEND_URL)
+  // First, prefer an explicit env/config value so `EXPO_PUBLIC_API_URL` or `VITE_BACKEND_URL` can control the host.
+  const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL)
+    || (typeof process !== 'undefined' && (process as any).env && (process as any).env.VITE_BACKEND_URL)
     || (Constants.manifest && (Constants.manifest as any).extra && (Constants.manifest as any).extra.VITE_BACKEND_URL)
     || (Constants.expoConfig && (Constants.expoConfig as any).extra && (Constants.expoConfig as any).extra.VITE_BACKEND_URL)
     || (typeof (global as any).VITE_BACKEND_URL !== 'undefined' ? (global as any).VITE_BACKEND_URL : undefined);
@@ -50,11 +51,9 @@ const getApiBaseUrl = () => {
   if (debuggerHost) {
     const host = debuggerHost.split(":")[0];
     if (host) {
-      if (host === "localhost" && Platform.OS === "android") {
-        return "http://10.0.2.2:3000";
-      }
-      if (host === "localhost" && Platform.OS === "ios") {
-        return "http://192.168.100.253:3000";
+      if (host === "localhost" || host === "127.0.0.1") {
+        if (Platform.OS === "android") return "http://10.0.2.2:3000";
+        return "http://localhost:3000";
       }
       return `http://${host}:3000`;
     }
@@ -64,8 +63,7 @@ const getApiBaseUrl = () => {
     return "http://10.0.2.2:3000";
   }
 
-  // Fallback for iOS physical devices or unknown expo host.
-  return "http://192.168.100.253:3000";
+  return "http://localhost:3000";
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -82,20 +80,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const originalFetch = global.fetch;
     global.fetch = async (...args) => {
       const res = await originalFetch(...args);
+      const url = typeof args[0] === "string" ? args[0] : args[0] && "url" in args[0] ? (args[0] as any).url : String(args[0] || "");
+      
       if (res.status === 403) {
-        const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-        const isLoginRequest = url.includes('/login');
+        const isLoginRequest = url.includes("/login");
         if (!isLoginRequest) {
           const clone = res.clone();
           try {
             const data = await clone.json();
-            if (data && data.message && data.message.toLowerCase().includes('suspended')) {
+            if (data && data.message && data.message.toLowerCase().includes("suspended")) {
               Alert.alert("Account Suspended", data.message);
               setUser(null);
             }
           } catch {
             // ignore json errors
           }
+        }
+      } else if (res.status === 401) {
+        const isAuthEndpoint =
+          url.includes("/login") ||
+          url.includes("/register") ||
+          url.includes("/send-otp") ||
+          url.includes("/forgot-password") ||
+          url.includes("/verify-otp") ||
+          url.includes("/reset-password");
+
+        if (!isAuthEndpoint) {
+          setUser(null);
         }
       }
       return res;

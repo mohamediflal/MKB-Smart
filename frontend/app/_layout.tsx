@@ -15,6 +15,10 @@ export default function RootLayout() {
             <CategoryProvider>
               <Stack initialRouteName="(tabs)" screenOptions={{ headerShown: false }}>
                 <Stack.Screen
+                  name="GroceryHistoryChat"
+                  options={{ animation: "slide_from_right" }}
+                />
+                <Stack.Screen
                   name="notificationPop"
                   options={{ presentation: "transparentModal", animation: "fade" }}
                 />
