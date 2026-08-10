@@ -91,3 +91,8 @@ export type UserDeviceToken = Prisma.UserDeviceTokenModel
  * 
  */
 export type AdminDeviceToken = Prisma.AdminDeviceTokenModel
+/**
+ * Model RecipeHistory
+ * 
+ */
+export type RecipeHistory = Prisma.RecipeHistoryModel

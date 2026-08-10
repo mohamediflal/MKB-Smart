@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow MKB Smart to use speech recognition for voice search.",
+        "NSMicrophoneUsageDescription": "Allow MKB Smart to use the microphone for voice search."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +23,12 @@
         "monochromeImage": "./src/assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.frontend"
     },
     "web": {
       "output": "static",
@@ -39,6 +48,13 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow MKB Smart to use the microphone for voice search.",
+          "speechRecognitionPermission": "Allow MKB Smart to use speech recognition for voice search."
+        }
       ]
     ],
     "experiments": {
@@ -47,4 +63,3 @@
     }
   }
 }
-

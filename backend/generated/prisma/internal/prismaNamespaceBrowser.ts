@@ -60,7 +60,8 @@ export const ModelName = {
   Order: 'Order',
   Notification: 'Notification',
   UserDeviceToken: 'UserDeviceToken',
-  AdminDeviceToken: 'AdminDeviceToken'
+  AdminDeviceToken: 'AdminDeviceToken',
+  RecipeHistory: 'RecipeHistory'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -176,6 +177,7 @@ export const OrderScalarFieldEnum = {
   items: 'items',
   shippingAddress: 'shippingAddress',
   paymentMethod: 'paymentMethod',
+  paymentStatus: 'paymentStatus',
   subtotal: 'subtotal',
   deliveryFee: 'deliveryFee',
   total: 'total',
@@ -230,6 +232,19 @@ export const AdminDeviceTokenScalarFieldEnum = {
 } as const
 
 export type AdminDeviceTokenScalarFieldEnum = (typeof AdminDeviceTokenScalarFieldEnum)[keyof typeof AdminDeviceTokenScalarFieldEnum]
+
+
+export const RecipeHistoryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  recipeName: 'recipeName',
+  quantityType: 'quantityType',
+  quantityValue: 'quantityValue',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type RecipeHistoryScalarFieldEnum = (typeof RecipeHistoryScalarFieldEnum)[keyof typeof RecipeHistoryScalarFieldEnum]
 
 
 export const SortOrder = {

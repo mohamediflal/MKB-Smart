@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View, ActivityIndicator, LayoutAnimation } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View, ActivityIndicator, LayoutAnimation, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -21,6 +21,9 @@ export default function BestSellingScreen() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [showCategoryFilter, setShowCategoryFilter] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
 
     const horizontalPadding = 16;
     const columnGap = 12;
@@ -30,6 +33,21 @@ export default function BestSellingScreen() {
         (width - horizontalPadding * 2 - columnGap * (columns - 1)) / columns;
 
     const categoriesList = ["All", ...categories.map(c => c.label)];
+
+    // Pulse animation while listening
+    useEffect(() => {
+        if (isListening) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, { toValue: 1.3, duration: 500, useNativeDriver: true }),
+                    Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+                ])
+            ).start();
+        } else {
+            pulseAnim.stopAnimation();
+            Animated.timing(pulseAnim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+        }
+    }, [isListening]);
 
     useEffect(() => {
         const fetchProducts = async () => {
@@ -130,6 +148,34 @@ export default function BestSellingScreen() {
                             <Ionicons name="close-circle" size={18} color="#94a3b8" />
                         </Pressable>
                     )}
+
+                    {/* Microphone / Voice Search button */}
+                    <Pressable
+                        onPress={() => setIsListening(prev => !prev)}
+                        accessibilityRole="button"
+                        accessibilityLabel={isListening ? "Stop voice search" : "Start voice search"}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <Animated.View
+                            style={[
+                                {
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: 15,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: isListening ? "#10B981" : "#ecfdf5",
+                                    transform: [{ scale: pulseAnim }],
+                                },
+                            ]}
+                        >
+                            <Ionicons
+                                name={isListening ? "mic" : "mic-outline"}
+                                size={17}
+                                color={isListening ? "#ffffff" : "#059669"}
+                            />
+                        </Animated.View>
+                    </Pressable>
                 </View>
 
                 {/* Filter Icon Button */}
