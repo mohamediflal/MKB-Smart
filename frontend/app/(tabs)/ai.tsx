@@ -251,7 +251,16 @@ export default function AIRecipeGenerator() {
           Authorization: `Bearer ${user.token}`,
         },
       })
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          const contentType = res.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+            throw new TypeError("Response was not JSON");
+          }
+          return res.json();
+        })
         .then((data) => {
           if (data && data.success && Array.isArray(data.history)) {
             setRecipeHistory(data.history);
@@ -260,7 +269,7 @@ export default function AIRecipeGenerator() {
           }
         })
         .catch((err) => {
-          console.error("Error fetching recipe history:", err);
+          console.error("Error fetching recipe history:", err.message || err);
           setRecipeHistory([]);
         });
     } else {
@@ -395,6 +404,13 @@ export default function AIRecipeGenerator() {
             quantityValue: qValClean,
           }),
         });
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const contentType = res.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new TypeError("Response was not JSON");
+        }
         const data = await res.json();
         if (data && data.success && data.item) {
           setRecipeHistory((prev) =>

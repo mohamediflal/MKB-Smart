@@ -225,7 +225,8 @@ export default function CheckoutScreen() {
 				// 2. Initialize the native Stripe Payment Sheet
 				const { error: initError } = await initPaymentSheet({
 					paymentIntentClientSecret: clientSecret,
-					merchantDisplayName: "MKB Smart Store",
+					merchantDisplayName: "MKB-Smart Payment",
+					allowsDelayedPaymentMethods: false,
 					defaultBillingDetails: {
 						name: primaryAddress.fullName,
 						phone: primaryAddress.phone || undefined,
@@ -235,7 +236,34 @@ export default function CheckoutScreen() {
 							line1: primaryAddress.street,
 							postalCode: primaryAddress.postalCode,
 						}
-					}
+					},
+					appearance: {
+						colors: {
+							primary: "#15803d",
+							background: "#ffffff",
+							componentBackground: "#ffffff",
+							componentBorder: "#e2e8f0",
+							componentDivider: "#f1f5f9",
+							primaryText: "#0f172a",
+							secondaryText: "#475569",
+							placeholderText: "#94a3b8",
+							icon: "#15803d",
+						},
+						shapes: {
+							borderRadius: 14,
+							borderWidth: 1,
+						},
+						primaryButton: {
+							colors: {
+								background: "#15803d",
+								text: "#ffffff",
+								border: "#15803d",
+							},
+							shapes: {
+								borderRadius: 14,
+							},
+						},
+					},
 				});
 
 				if (initError) {
