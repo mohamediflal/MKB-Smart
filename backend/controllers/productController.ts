@@ -191,3 +191,34 @@ export const sigleProduct = async (req: Request, res: Response) => {
     return res.status(500).json({ message: error.message || 'Internal server error' });
   }
 };
+
+// Search Active Products
+export const searchProducts = async (req: Request, res: Response) => {
+  try {
+    const q = ((req.query.q as string) || '').trim();
+    if (!q) {
+      return res.status(200).json([]);
+    }
+
+    const products = await prisma.product.findMany({
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+          { category: { name: { contains: q, mode: 'insensitive' } } },
+        ],
+      },
+      include: {
+        category: true,
+      },
+      take: 20,
+    });
+
+    return res.status(200).json(products);
+  } catch (error: any) {
+    console.error('Search Products Error:', error);
+    return res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+};
+

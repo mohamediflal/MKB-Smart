@@ -4,6 +4,37 @@ import { handleOrderStatusChange, checkAndNotifyStock } from '../services/notifi
 import { stripe } from '../configs/stripe.js';
 
 
+// Helper to process and update orders (CARD & COD) whose cancellation window has expired
+export const processExpiredOrderPayments = async (orderId?: string) => {
+  try {
+    const oneMinuteAgo = new Date(Date.now() - 60000);
+    const whereCondition: any = {
+      paymentMethod: { in: ['CARD', 'CASH_ON_DELIVERY'] },
+      status: { not: 'CANCELLED' },
+      paymentStatus: { not: 'success' },
+      createdAt: { lte: oneMinuteAgo }
+    };
+
+    if (orderId) {
+      whereCondition.id = orderId;
+    }
+
+    await prisma.order.updateMany({
+      where: whereCondition,
+      data: {
+        paymentStatus: 'success'
+      }
+    });
+  } catch (error) {
+    console.error('Error in processExpiredOrderPayments:', error);
+  }
+};
+
+// Kept for backward compatibility
+export const processExpiredCardPayments = async (orderId?: string) => {
+  await processExpiredOrderPayments(orderId);
+};
+
 // Helper to map DB order to client format
 const formatOrder = (order: any) => {
   if (!order) return null;
@@ -128,6 +159,7 @@ export const placeOrder = async (req: Request & { userId?: string }, res: Respon
           items,
           shippingAddress,
           paymentMethod: 'CASH_ON_DELIVERY',
+          paymentStatus: 'pending',
           subtotal: Number(subtotal),
           deliveryFee: Number(deliveryFee || 0),
           total: Number(total),
@@ -147,9 +179,10 @@ export const placeOrder = async (req: Request & { userId?: string }, res: Respon
       });
     }
 
-    // Delay notifications by 1 minute (Pending status duration)
+    // Delay notifications by 1 minute (Pending status duration) & update paymentStatus upon cancellation expiry
     setTimeout(async () => {
       try {
+        await processExpiredOrderPayments(order.id);
         const currentOrder = await prisma.order.findUnique({
           where: { id: order.id }
         });
@@ -255,6 +288,7 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
           items,
           shippingAddress,
           paymentMethod: 'CARD',
+          paymentStatus: 'pending',
           subtotal: Number(subtotal),
           deliveryFee: Number(deliveryFee || 0),
           total: Number(total),
@@ -278,6 +312,15 @@ export const placeCardOrder = async (req: Request & { userId?: string }, res: Re
         console.error(`Error checking/notifying stock for product ${item.id}:`, err);
       });
     }
+
+    // Schedule payment status update to 'success' after cancellation period expires (60 seconds)
+    setTimeout(async () => {
+      try {
+        await processExpiredCardPayments(order.id);
+      } catch (err) {
+        console.error('Error in card payment status update timer:', err);
+      }
+    }, 60000);
 
     // Delay notifications by a brief moment
     setTimeout(async () => {
@@ -347,6 +390,7 @@ export const createPaymentIntent = async (req: Request & { userId?: string }, re
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
       currency: 'lkr',
+      payment_method_types: ['card'],
       metadata: {
         userId,
       },
@@ -372,6 +416,8 @@ export const getUserOrders = async (req: Request & { userId?: string }, res: Res
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
+    await processExpiredOrderPayments();
+
     const orders = await prisma.order.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
@@ -388,6 +434,8 @@ export const getUserOrders = async (req: Request & { userId?: string }, res: Res
 // Show all orders data for admin panel
 export const getAllOrders = async (req: Request, res: Response) => {
   try {
+    await processExpiredOrderPayments();
+
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
     });
@@ -407,6 +455,8 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     if (!orderId || !status) {
       return res.status(400).json({ success: false, message: 'Required fields missing: orderId, status' });
     }
+
+    await processExpiredOrderPayments(orderId);
 
     if (status === 'Cancelled' || status === 'CANCELLED') {
       return res.status(400).json({ success: false, message: 'Admin or Super Admin cannot change order status to Cancelled.' });
@@ -558,6 +608,7 @@ export const cancelUserOrder = async (req: Request & { userId?: string }, res: R
         where: { id: orderId },
         data: {
           status: 'CANCELLED',
+          paymentStatus: 'cancelled',
           statusHistory: updatedHistory
         }
       });

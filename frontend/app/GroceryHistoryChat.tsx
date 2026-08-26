@@ -9,11 +9,22 @@ import {
   Platform,
   Animated,
   Linking,
+  Modal,
+  Alert,
+  Keyboard,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { API_BASE_URL } from "@/context/AuthContext";
+
+let ExpoSpeechRecognitionModule: any = null;
+try {
+  const SpeechLib = require("expo-speech-recognition");
+  ExpoSpeechRecognitionModule = SpeechLib.ExpoSpeechRecognitionModule;
+} catch (error) {
+  console.warn("ExpoSpeechRecognition native module not found:", error);
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,24 +111,171 @@ function isVideoRequest(text: string): boolean {
 export default function GroceryHistoryChat() {
   const router = useRouter();
   const params = useLocalSearchParams<{ recipeTitle?: string }>();
+  const insets = useSafeAreaInsets();
 
   // The recipe title passed from the Recent Recipes card click.
   // Empty when opened without a selected recipe (never fall back to a hardcoded recipe).
   const selectedRecipeTitle = params.recipeTitle?.trim() || "";
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const chatInputRef = useRef<TextInput>(null);
   const [inputMessage, setInputMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  // States for Voice Search / Speech to Text (reused from shopProduct.tsx)
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [recognizedText, setRecognizedText] = useState("");
+  const [recognitionError, setRecognitionError] = useState<string | null>(null);
+  const [confirmationStep, setConfirmationStep] = useState(false);
+  const [isMockMode, setIsMockMode] = useState(false);
+
+  const isVoiceSupported = !!ExpoSpeechRecognitionModule;
 
   // Guard: fire the automatic first AI request only once, even if component re-renders
   const initSentRef = useRef(false);
 
   // Pulse animation for typing indicator
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
-  // Separate pulse animation for the microphone button
+  // Pulse animation for the microphone button (same as shopProduct.tsx)
   const micPulseAnim = useRef(new Animated.Value(1)).current;
+
+  // ── Speech recognition event handlers (same as shopProduct.tsx) ───────────────
+
+  useEffect(() => {
+    if (!ExpoSpeechRecognitionModule) return;
+
+    const startListener = ExpoSpeechRecognitionModule.addListener("start", () => {
+      setIsListening(true);
+    });
+
+    const resultListener = ExpoSpeechRecognitionModule.addListener("result", (event: any) => {
+      const transcript = event.results?.[0]?.transcript || "";
+      setRecognizedText(transcript);
+    });
+
+    const errorListener = ExpoSpeechRecognitionModule.addListener("error", (event: any) => {
+      if (event.error !== "aborted") {
+        console.error("Speech recognition error:", event);
+        setRecognitionError(event.message || `Recognition error: ${event.error}`);
+      }
+      setIsListening(false);
+    });
+
+    const endListener = ExpoSpeechRecognitionModule.addListener("end", () => {
+      setIsListening(false);
+      setConfirmationStep(true);
+    });
+
+    return () => {
+      startListener.remove();
+      resultListener.remove();
+      errorListener.remove();
+      endListener.remove();
+    };
+  }, []);
+
+  const startVoiceSearch = async () => {
+    if (!isVoiceSupported) {
+      // Expo Go Mock Fallback Mode
+      setIsMockMode(true);
+      setRecognizedText("");
+      setRecognitionError(null);
+      setConfirmationStep(false);
+      setVoiceModalVisible(true);
+      setIsListening(true);
+      return;
+    }
+
+    try {
+      setIsMockMode(false);
+      const status = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+      let granted = status.granted;
+      if (!granted) {
+        const request = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        granted = request.granted;
+      }
+
+      if (!granted) {
+        Alert.alert(
+          "Permission Denied",
+          "Microphone and speech recognition permissions are required to use voice input."
+        );
+        return;
+      }
+
+      // Prepare voice search state
+      setRecognizedText("");
+      setRecognitionError(null);
+      setConfirmationStep(false);
+      setVoiceModalVisible(true);
+      setIsListening(true);
+
+      // Start recognition service
+      ExpoSpeechRecognitionModule.start({
+        lang: "en-US",
+        interimResults: true,
+        maxAlternatives: 1,
+        continuous: false,
+      });
+    } catch (error: any) {
+      console.error("Failed to start voice search:", error);
+      setRecognitionError(error.message || "Failed to start speech recognition.");
+      setIsListening(false);
+    }
+  };
+
+  const stopVoiceSearch = () => {
+    if (isMockMode) {
+      setIsListening(false);
+      setConfirmationStep(true);
+      return;
+    }
+    if (isVoiceSupported) {
+      ExpoSpeechRecognitionModule.stop();
+    }
+    setIsListening(false);
+  };
+
+  const cancelVoiceSearch = () => {
+    if (isMockMode) {
+      setIsListening(false);
+      setVoiceModalVisible(false);
+      setConfirmationStep(false);
+      setRecognizedText("");
+      setIsMockMode(false);
+      return;
+    }
+    if (isVoiceSupported) {
+      ExpoSpeechRecognitionModule.abort();
+    }
+    setIsListening(false);
+    setVoiceModalVisible(false);
+    setConfirmationStep(false);
+    setRecognizedText("");
+  };
+
+  const handleConfirm = () => {
+    if (recognizedText.trim()) {
+      const textToSend = recognizedText.trim();
+      setInputMessage(textToSend);
+      handleSendPrompt(textToSend);
+    }
+    setVoiceModalVisible(false);
+    setConfirmationStep(false);
+  };
+
+  const handleEdit = () => {
+    if (recognizedText.trim()) {
+      setInputMessage(recognizedText.trim());
+    }
+    setVoiceModalVisible(false);
+    setConfirmationStep(false);
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 150);
+  };
 
   // ── Pulse animation (typing indicator) ──────────────────────────────────────
 
@@ -135,19 +293,19 @@ export default function GroceryHistoryChat() {
     }
   }, [isTyping]);
 
-  // ── Pulse animation (microphone button) ──────────────────────────────────────
+  // ── Pulse animation while listening (same as shopProduct.tsx) ───────────────
 
   useEffect(() => {
     if (isListening) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(micPulseAnim, { toValue: 1.25, duration: 600, useNativeDriver: true }),
-          Animated.timing(micPulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(micPulseAnim, { toValue: 1.3, duration: 500, useNativeDriver: true }),
+          Animated.timing(micPulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
         ])
       ).start();
     } else {
       micPulseAnim.stopAnimation();
-      micPulseAnim.setValue(1);
+      Animated.timing(micPulseAnim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
     }
   }, [isListening]);
 
@@ -158,6 +316,20 @@ export default function GroceryHistoryChat() {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
   };
+
+  // ── Keyboard visibility listener ─────────────────────────────────────────────
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => {
+        scrollToBottom();
+      }
+    );
+    return () => {
+      showSubscription.remove();
+    };
+  }, []);
 
   // ── Core AI request ──────────────────────────────────────────────────────────
 
@@ -277,8 +449,8 @@ export default function GroceryHistoryChat() {
 
   // ── Manual send (follow-up questions) ─────────────────────────────────────────
 
-  const handleSend = () => {
-    const text = inputMessage.trim();
+  const handleSendPrompt = (overrideText?: string) => {
+    const text = (overrideText ?? inputMessage).trim();
     if (!text || isTyping) return;
 
     const userMsg: ChatMessage = {
@@ -298,8 +470,6 @@ export default function GroceryHistoryChat() {
       : undefined;
 
     setMessages((prev) => {
-      // Send with the history BEFORE this new message; the backend appends the
-      // current message itself, so passing it again would duplicate it.
       sendToAI(text, prev, ytUrl, ytLabel);
       return [...prev, userMsg];
     });
@@ -307,10 +477,12 @@ export default function GroceryHistoryChat() {
     scrollToBottom();
   };
 
+  const handleSend = () => handleSendPrompt();
+
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView className="flex-1 bg-[#fcfdfa]" edges={["top", "bottom"]}>
+    <SafeAreaView className="flex-1 bg-[#fcfdfa]" edges={["top"]}>
       {/* ── Header ── */}
       <View className="flex-row items-center justify-between px-4 py-3.5 border-b border-[#e1e5dd] bg-white">
         <View className="flex-row items-center gap-3">
@@ -350,7 +522,8 @@ export default function GroceryHistoryChat() {
       {/* ── Chat area ── */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
       >
         <ScrollView
           ref={scrollViewRef}
@@ -479,13 +652,18 @@ export default function GroceryHistoryChat() {
         </ScrollView>
 
         {/* ── Input bar ── */}
-        <View className="px-4 pt-3 pb-2 bg-white border-t border-slate-200/60">
+        <View
+          style={{ paddingBottom: Math.max(insets.bottom, 8) }}
+          className="px-4 pt-3 bg-white border-t border-slate-200/60"
+        >
           {/* Pill row: text input + mic + send */}
           <View className="flex-row items-end rounded-3xl bg-[#f5f8f5] border border-[#0d631b]/20 px-3 py-2 gap-x-2">
             {/* Text field */}
             <TextInput
+              ref={chatInputRef}
               value={inputMessage}
               onChangeText={setInputMessage}
+              onFocus={scrollToBottom}
               placeholder="Ask a follow-up cooking question..."
               placeholderTextColor="#94a3b8"
               multiline
@@ -497,7 +675,7 @@ export default function GroceryHistoryChat() {
 
             {/* Microphone button */}
             <Pressable
-              onPress={() => setIsListening(prev => !prev)}
+              onPress={isListening ? stopVoiceSearch : startVoiceSearch}
               accessibilityRole="button"
               accessibilityLabel={isListening ? "Stop voice input" : "Start voice input"}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -553,6 +731,216 @@ export default function GroceryHistoryChat() {
           </Text>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Voice Input Modal (reused from shopProduct.tsx) */}
+      <Modal
+        transparent
+        visible={voiceModalVisible}
+        animationType="fade"
+        onRequestClose={cancelVoiceSearch}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(15, 23, 42, 0.6)", justifyContent: "flex-end" }}>
+          <Pressable style={{ flex: 1 }} onPress={cancelVoiceSearch} />
+          <View
+            className="bg-white rounded-t-[32px] px-6 pt-6 pb-8 shadow-2xl border-t border-slate-100"
+            style={{
+              shadowColor: "#0f172a",
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 10,
+              elevation: 10,
+            }}
+          >
+            {/* Drag Handle Indicator */}
+            <View className="items-center mb-6">
+              <View className="w-12 h-1.5 rounded-full bg-slate-200" />
+            </View>
+
+            {recognitionError ? (
+              // Error State
+              <View className="items-center py-4">
+                <View className="h-16 w-16 items-center justify-center rounded-full bg-rose-50 mb-4">
+                  <Ionicons name="alert-circle" size={32} color="#f43f5e" />
+                </View>
+                <Text className="text-lg font-bold text-slate-800 mb-2">Speech Recognition Error</Text>
+                <Text className="text-sm text-slate-500 text-center px-4 mb-6 leading-relaxed">
+                  {recognitionError}
+                </Text>
+                <View className="flex-row w-full gap-3">
+                  <Pressable
+                    onPress={startVoiceSearch}
+                    className="flex-1 bg-[#0d631b] py-3.5 rounded-2xl items-center justify-center shadow-md active:bg-[#0b5216]"
+                  >
+                    <Text className="text-white font-bold text-base">Try Again</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={cancelVoiceSearch}
+                    className="flex-1 bg-slate-100 py-3.5 rounded-2xl items-center justify-center active:bg-slate-200"
+                  >
+                    <Text className="text-slate-700 font-bold text-base">Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : !confirmationStep ? (
+              // Listening / Speaking State
+              <View className="items-center py-4">
+                <Text className="text-lg font-extrabold text-slate-800 mb-6">Listening...</Text>
+
+                {/* Pulsing Central Icon */}
+                <View className="h-28 w-28 items-center justify-center rounded-full bg-emerald-50 mb-6 relative">
+                  <Animated.View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      borderRadius: 56,
+                      backgroundColor: "#dcfce7",
+                      transform: [{ scale: micPulseAnim }],
+                      opacity: 0.6,
+                    }}
+                  />
+                  <View className="h-20 w-20 items-center justify-center rounded-full bg-[#0d631b] shadow-lg relative z-10">
+                    <Ionicons name="mic" size={36} color="white" />
+                  </View>
+                </View>
+
+                {/* Transcribed Text */}
+                <View className="min-h-[60px] justify-center px-4 mb-4 w-full">
+                  {recognizedText ? (
+                    <Text className="text-xl font-bold text-slate-800 text-center leading-relaxed italic">
+                      "{recognizedText}"
+                    </Text>
+                  ) : (
+                    <Text className="text-base font-semibold text-slate-400 text-center">
+                      {isMockMode
+                        ? "Select a suggestion below to simulate speech:"
+                        : 'Say something like "How do I cook chicken curry?"'}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Mock Mode suggestion chips & input fallback for Expo Go */}
+                {isMockMode && (
+                  <View className="w-full px-2 mb-6">
+                    <View className="flex-row flex-wrap justify-center gap-2 mb-4">
+                      {[
+                        "How do I cook chicken curry step by step?",
+                        "What heat level should I use for pasta?",
+                        "How do I know when the chicken is ready?",
+                      ].map((term) => (
+                        <Pressable
+                          key={term}
+                          onPress={() => {
+                            setRecognizedText(term);
+                            setIsListening(false);
+                            setConfirmationStep(true);
+                          }}
+                          className="bg-emerald-50 border border-emerald-100 rounded-full px-3.5 py-1.5 active:bg-emerald-100"
+                        >
+                          <Text className="text-xs font-bold text-[#0d631b]">{term}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    {/* Or let them type a custom query */}
+                    <View className="flex-row items-center border border-slate-200 rounded-xl bg-slate-50 px-3 py-1 mx-2">
+                      <TextInput
+                        value={recognizedText}
+                        onChangeText={setRecognizedText}
+                        placeholder="Or type custom test query here..."
+                        placeholderTextColor="#cbd5e1"
+                        className="flex-1 text-sm font-semibold text-slate-700 p-1"
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {/* Done / Cancel controls */}
+                <View className="flex-row w-full gap-3">
+                  <Pressable
+                    onPress={stopVoiceSearch}
+                    className="flex-1 bg-[#0d631b] py-3.5 rounded-2xl items-center justify-center shadow-md active:bg-[#0b5216]"
+                  >
+                    <Text className="text-white font-bold text-base">Done Speaking</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={cancelVoiceSearch}
+                    className="flex-1 bg-slate-100 py-3.5 rounded-2xl items-center justify-center active:bg-slate-200"
+                  >
+                    <Text className="text-slate-700 font-bold text-base">Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : !recognizedText.trim() ? (
+              // No speech detected state
+              <View className="items-center py-4">
+                <View className="h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
+                  <Ionicons name="mic-off" size={28} color="#64748b" />
+                </View>
+                <Text className="text-lg font-bold text-slate-800 mb-2">No Speech Detected</Text>
+                <Text className="text-sm text-slate-400 text-center mb-6">
+                  We couldn't hear what you said. Please try again.
+                </Text>
+                <View className="flex-row w-full gap-3">
+                  <Pressable
+                    onPress={startVoiceSearch}
+                    className="flex-1 bg-[#0d631b] py-3.5 rounded-2xl items-center justify-center shadow-md active:bg-[#0b5216]"
+                  >
+                    <Text className="text-white font-bold text-base">Try Again</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={cancelVoiceSearch}
+                    className="flex-1 bg-slate-100 py-3.5 rounded-2xl items-center justify-center active:bg-slate-200"
+                  >
+                    <Text className="text-slate-700 font-bold text-base">Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              // Confirmation State (Confirm / Edit / Cancel)
+              <View className="items-center py-4">
+                <Text className="text-xs font-bold text-[#0d631b] uppercase tracking-widest mb-1.5">
+                  Voice Prompt Review
+                </Text>
+                <Text className="text-xl font-extrabold text-slate-900 mb-6 text-center">
+                  Is this what you want to send?
+                </Text>
+
+                <View className="bg-slate-50 border border-slate-100 rounded-2xl p-5 mb-8 w-full justify-center">
+                  <Text className="text-xs font-bold text-slate-400 uppercase mb-2">Recognized Speech:</Text>
+                  <Text className="text-2xl font-extrabold text-slate-800 leading-snug">
+                    "{recognizedText}"
+                  </Text>
+                </View>
+
+                {/* Confirmation Buttons Row */}
+                <View className="flex-row w-full gap-2.5">
+                  <Pressable
+                    onPress={handleConfirm}
+                    className="flex-[1.2] bg-[#0d631b] py-4 rounded-2xl items-center justify-center shadow-md active:bg-[#0b5216]"
+                  >
+                    <Text className="text-white font-bold text-base">Confirm & Send</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleEdit}
+                    className="flex-1 bg-slate-100 py-4 rounded-2xl items-center justify-center active:bg-slate-200"
+                  >
+                    <Text className="text-slate-700 font-bold text-base">Edit</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={cancelVoiceSearch}
+                    className="flex-1 border border-slate-200 bg-white py-4 rounded-2xl items-center justify-center active:bg-slate-50"
+                  >
+                    <Text className="text-slate-500 font-bold text-base">Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
