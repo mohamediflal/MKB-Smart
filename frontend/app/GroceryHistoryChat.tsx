@@ -53,26 +53,35 @@ function nowTime() {
 function buildCookingPrompt(recipeTitle: string): string {
   return (
     `I want to cook: ${recipeTitle}.\n\n` +
-    `Please give me complete, beginner-friendly, step-by-step cooking instructions for this recipe.\n\n` +
-    `Structure your response exactly like this:\n` +
-    `🍳 Recipe name and number of people\n` +
-    `⏱ Estimated total cooking time\n` +
-    `🥘 Ingredients with exact quantities scaled for the number of people mentioned\n` +
-    `👨‍🍳 Step-by-step instructions — each step clearly titled and numbered\n` +
-    `✅ A few beginner tips at the end\n\n` +
-    `Important:\n` +
-    `- Use simple everyday language. Assume I have never cooked this before.\n` +
-    `- For each step, tell me what to do, which ingredient to use, how much, what heat level, how long to cook, and what I should see/smell/feel to know it is ready.\n` +
-    `- Scale the ingredient quantities correctly for the number of people in the title.\n` +
-    `- For meat or poultry, include a food safety check (e.g. no pink inside, juices run clear).`
+    `Please provide complete, beginner-friendly, step-by-step cooking instructions.\n\n` +
+    `YOU MUST FORMAT YOUR RESPONSE EXACTLY USING THIS STRUCTURE:\n\n` +
+    `🍽️ ${recipeTitle}\n\n` +
+    `⏱️ Preparation Time: [X minutes]\n` +
+    `🔥 Cooking Time: [Y minutes]\n` +
+    `👥 Servings: [Scaled amount for ${recipeTitle}]\n\n` +
+    `### 🛒 Ingredients\n\n` +
+    `* [Quantity and ingredient]\n` +
+    `* [Quantity and ingredient]\n\n` +
+    `### 👨‍🍳 Cooking Steps\n\n` +
+    `**Step 1 — [Title of Step]**\n` +
+    `[Clear, short description: what to do, which ingredient, heat level, duration, and what to look/smell for]\n\n` +
+    `**Step 2 — [Title of Step]**\n` +
+    `[Instructions...]\n\n` +
+    `### 💡 Cooking Tips\n\n` +
+    `* [Tip 1]\n` +
+    `* [Tip 2]\n\n` +
+    `### 🍴 Serving\n\n` +
+    `[Serving suggestion]\n\n` +
+    `CRITICAL RULES:\n` +
+    `- Format each cooking step separately starting with "**Step N — Title**".\n` +
+    `- Never return the entire recipe as one large paragraph.\n` +
+    `- Use bullet points ("* ") for ingredients and tips.\n` +
+    `- If a section like Cooking Tips is not needed, omit it entirely.\n` +
+    `- Scale ingredients accurately for ${recipeTitle}.\n` +
+    `- Keep paragraphs short and easy to read while cooking.`
   );
 }
 
-/**
- * Returns a guaranteed-real YouTube search URL for the recipe.
- * Strips quantity phrases like "for 10 People" so the search focuses on the dish name.
- * NEVER invents video IDs — always uses youtube.com/results?search_query=...
- */
 function buildYouTubeSearchUrl(recipeTitle: string): string {
   const baseName = recipeTitle
     .replace(/\bfor\s+\d+\s*(people|persons|servings|pax|person)?\b/gi, "")
@@ -82,7 +91,6 @@ function buildYouTubeSearchUrl(recipeTitle: string): string {
   return `https://www.youtube.com/results?search_query=${query}`;
 }
 
-/** Returns a short display label for the YouTube card. */
 function buildYouTubeLabel(recipeTitle: string): string {
   const baseName = recipeTitle
     .replace(/\bfor\s+\d+\s*(people|persons|servings|pax|person)?\b/gi, "")
@@ -91,10 +99,6 @@ function buildYouTubeLabel(recipeTitle: string): string {
   return `${baseName} – Step-by-Step Cooking Tutorial`;
 }
 
-/**
- * Returns true when the user's message is asking for a video.
- * Used to attach a YouTube card to follow-up AI replies.
- */
 function isVideoRequest(text: string): boolean {
   const lower = text.toLowerCase();
   return (
@@ -103,6 +107,387 @@ function isVideoRequest(text: string): boolean {
     lower.includes("tutorial") ||
     lower.includes("watch") ||
     lower.includes("show me")
+  );
+}
+
+// ─── Recipe Markdown Parsing & Rendering Helpers ──────────────────────────────
+
+function renderFormattedText(text: string, isUser = false) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+      const bold = part.slice(2, -2);
+      return (
+        <Text key={idx} className={isUser ? "font-bold text-white" : "font-extrabold text-slate-900"}>
+          {bold}
+        </Text>
+      );
+    }
+    return (
+      <Text key={idx} className={isUser ? "text-white" : "text-slate-800"}>
+        {part}
+      </Text>
+    );
+  });
+}
+
+type ParsedRecipeCard = {
+  isRecipe: boolean;
+  recipeName: string;
+  meta: Array<{ icon: string; label: string; value: string }>;
+  ingredients: string[];
+  steps: Array<{ stepNumber: number; title: string; instruction: string }>;
+  tips: string[];
+  serving: string;
+};
+
+function parseRecipeCard(text: string): ParsedRecipeCard {
+  const hasStep = /step\s+\d+/i.test(text);
+  const hasIngredients = /ingredients/i.test(text);
+
+  if (!hasStep && !hasIngredients) {
+    return { isRecipe: false, recipeName: "", meta: [], ingredients: [], steps: [], tips: [], serving: "" };
+  }
+
+  const lines = text.split("\n");
+  let recipeName = "";
+  const meta: Array<{ icon: string; label: string; value: string }> = [];
+  const ingredients: string[] = [];
+  const steps: Array<{ stepNumber: number; title: string; instruction: string }> = [];
+  const tips: string[] = [];
+  let serving = "";
+
+  type Section = "header" | "ingredients" | "steps" | "tips" | "serving";
+  let currentSection: Section = "header";
+  let currentStep: { stepNumber: number; title: string; instruction: string } | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // Detect section headers
+    if (/^#*\s*(🛒\s*)?ingredients/i.test(line) || /^###\s*.*ingredients/i.test(line) || /^🥘\s*ingredients/i.test(line)) {
+      if (currentStep) {
+        steps.push(currentStep);
+        currentStep = null;
+      }
+      currentSection = "ingredients";
+      continue;
+    }
+
+    if (
+      /^#*\s*(👨‍🍳\s*)?cooking\s+steps/i.test(line) ||
+      /^###\s*.*cooking\s+steps/i.test(line) ||
+      /^#*\s*step-by-step/i.test(line) ||
+      /^###\s*.*step-by-step/i.test(line)
+    ) {
+      if (currentStep) {
+        steps.push(currentStep);
+        currentStep = null;
+      }
+      currentSection = "steps";
+      continue;
+    }
+
+    if (/^#*\s*(💡\s*)?(cooking\s+)?tips/i.test(line) || /^###\s*.*tips/i.test(line) || /^✅\s*tips/i.test(line)) {
+      if (currentStep) {
+        steps.push(currentStep);
+        currentStep = null;
+      }
+      currentSection = "tips";
+      continue;
+    }
+
+    if (/^#*\s*(🍴\s*)?serving/i.test(line) || /^###\s*.*serving/i.test(line)) {
+      if (currentStep) {
+        steps.push(currentStep);
+        currentStep = null;
+      }
+      currentSection = "serving";
+      continue;
+    }
+
+    // Process content within section
+    if (currentSection === "header") {
+      if (line.includes("🍽️") || line.includes("🍳") || (!recipeName && /^(\*\*|#)/.test(line))) {
+        recipeName = line.replace(/[#*🍽️🍳]/g, "").trim();
+      } else if (/⏱/i.test(line) || /prep(aration)?\s*time/i.test(line)) {
+        const val = line.replace(/^[⏱️*🔥👥\s]*prep(aration)?\s*time\s*[:—–-]\s*/i, "").replace(/[*_]/g, "").trim();
+        if (val) meta.push({ icon: "⏱️", label: "Prep Time", value: val });
+      } else if (/🔥/i.test(line) || /cook(ing)?\s*time/i.test(line) || /total\s*time/i.test(line)) {
+        const val = line.replace(/^[⏱️*🔥👥\s]*(cook(ing)?|total)\s*time\s*[:—–-]\s*/i, "").replace(/[*_]/g, "").trim();
+        if (val) meta.push({ icon: "🔥", label: "Cook Time", value: val });
+      } else if (/👥/i.test(line) || /servings?/i.test(line)) {
+        const val = line.replace(/^[⏱️*🔥👥\s]*servings?\s*[:—–-]\s*/i, "").replace(/[*_]/g, "").trim();
+        if (val) meta.push({ icon: "👥", label: "Servings", value: val });
+      }
+    } else if (currentSection === "ingredients") {
+      if (/^[*•-]\s*/.test(line)) {
+        const item = line.replace(/^[*•-]\s*/, "").trim();
+        if (item) ingredients.push(item);
+      }
+    } else if (currentSection === "steps") {
+      const stepMatch = line.match(/^(\*\*)?Step\s+(\d+)\s*[:—–-]\s*(.*?)(\*\*)?$/i);
+      if (stepMatch) {
+        if (currentStep) steps.push(currentStep);
+        currentStep = {
+          stepNumber: parseInt(stepMatch[2], 10),
+          title: stepMatch[3].replace(/\*\*/g, "").trim() || `Step ${stepMatch[2]}`,
+          instruction: "",
+        };
+      } else if (currentStep) {
+        currentStep.instruction = currentStep.instruction
+          ? `${currentStep.instruction}\n${line}`
+          : line;
+      }
+    } else if (currentSection === "tips") {
+      if (/^[*•-]\s*/.test(line)) {
+        const tip = line.replace(/^[*•-]\s*/, "").trim();
+        if (tip) tips.push(tip);
+      } else if (line) {
+        tips.push(line);
+      }
+    } else if (currentSection === "serving") {
+      serving = serving ? `${serving} ${line}` : line;
+    }
+  }
+
+  if (currentStep) {
+    steps.push(currentStep);
+  }
+
+  if (steps.length === 0 && ingredients.length === 0) {
+    return { isRecipe: false, recipeName: "", meta: [], ingredients: [], steps: [], tips: [], serving: "" };
+  }
+
+  return {
+    isRecipe: true,
+    recipeName,
+    meta,
+    ingredients,
+    steps,
+    tips,
+    serving,
+  };
+}
+
+function RecipeCardBubble({
+  parsed,
+  youtubeSearchUrl,
+  youtubeLabel,
+}: {
+  parsed: ParsedRecipeCard;
+  youtubeSearchUrl?: string;
+  youtubeLabel?: string;
+}) {
+  return (
+    <View className="w-full">
+      {/* ── Recipe Header ── */}
+      <View className="rounded-2xl bg-white border border-slate-200/90 p-4 shadow-xs mb-3">
+        <View className="flex-row items-center gap-2 mb-2">
+          <Text className="text-[22px]">🍽️</Text>
+          <Text className="text-[18px] font-black text-slate-900 flex-1 tracking-tight">
+            {parsed.recipeName || "Recipe Instructions"}
+          </Text>
+        </View>
+
+        {parsed.meta.length > 0 && (
+          <View className="flex-row flex-wrap gap-2 mt-2 pt-2.5 border-t border-slate-100">
+            {parsed.meta.map((m, idx) => (
+              <View
+                key={idx}
+                className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200"
+              >
+                <Text className="text-[12px]">{m.icon}</Text>
+                <Text className="text-[12px] font-bold text-emerald-950">
+                  {m.label}: <Text className="font-extrabold text-[#0d631b]">{m.value}</Text>
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* ── Ingredients Card ── */}
+      {parsed.ingredients.length > 0 && (
+        <View className="rounded-2xl bg-white border border-slate-200/90 p-4 shadow-xs mb-3">
+          <View className="flex-row items-center justify-between mb-3 pb-2.5 border-b border-slate-100">
+            <View className="flex-row items-center gap-2">
+              <Text className="text-[17px]">🛒</Text>
+              <Text className="text-[16px] font-black text-slate-900 tracking-tight">
+                Ingredients
+              </Text>
+            </View>
+            <View className="px-2.5 py-0.5 rounded-full bg-emerald-100 border border-emerald-200">
+              <Text className="text-[11px] font-bold text-emerald-800">
+                {parsed.ingredients.length} items
+              </Text>
+            </View>
+          </View>
+
+          <View className="gap-y-2">
+            {parsed.ingredients.map((ing, idx) => (
+              <View key={idx} className="flex-row items-start gap-2.5">
+                <View className="h-2 w-2 rounded-full bg-[#0d631b] mt-2 shrink-0" />
+                <Text className="text-[14px] text-slate-800 font-medium flex-1 leading-5">
+                  {renderFormattedText(ing)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* ── Cooking Steps Section ── */}
+      {parsed.steps.length > 0 && (
+        <View className="mb-2">
+          <View className="flex-row items-center gap-2 mb-2.5 px-1">
+            <Text className="text-[17px]">👨‍🍳</Text>
+            <Text className="text-[16px] font-black text-slate-900 tracking-tight">
+              Cooking Steps
+            </Text>
+          </View>
+
+          <View className="gap-y-3">
+            {parsed.steps.map((step) => (
+              <View
+                key={step.stepNumber}
+                className="rounded-2xl bg-white border border-slate-200/90 p-4 shadow-xs"
+              >
+                {/* Step Pill + Title */}
+                <View className="flex-row items-center gap-2.5 mb-2">
+                  <View className="px-2.5 py-1 rounded-xl bg-[#0d631b] items-center justify-center">
+                    <Text className="text-[11px] font-black text-white tracking-wider uppercase">
+                      Step {step.stepNumber}
+                    </Text>
+                  </View>
+                  <Text className="text-[15px] font-extrabold text-slate-900 flex-1 leading-5">
+                    {step.title}
+                  </Text>
+                </View>
+
+                {/* Step Description */}
+                <Text className="text-[14px] text-slate-700 leading-6 font-normal mt-1">
+                  {renderFormattedText(step.instruction)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* ── Cooking Tips Card ── */}
+      {parsed.tips.length > 0 && (
+        <View className="rounded-2xl bg-amber-50/80 border border-amber-200 p-4 shadow-xs mb-3">
+          <View className="flex-row items-center gap-2 mb-2.5 pb-2 border-b border-amber-200/60">
+            <Text className="text-[16px]">💡</Text>
+            <Text className="text-[15px] font-black text-amber-950 tracking-tight">
+              Cooking Tips
+            </Text>
+          </View>
+
+          <View className="gap-y-2">
+            {parsed.tips.map((tip, idx) => (
+              <View key={idx} className="flex-row items-start gap-2.5">
+                <Ionicons name="bulb-outline" size={15} color="#d97706" style={{ marginTop: 2 }} />
+                <Text className="text-[13px] text-amber-950 font-medium flex-1 leading-5">
+                  {renderFormattedText(tip)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* ── Serving ── */}
+      {parsed.serving ? (
+        <View className="rounded-2xl bg-emerald-50/70 border border-emerald-200/80 p-3.5 mb-3 flex-row items-center gap-2.5">
+          <Text className="text-[18px]">🍴</Text>
+          <View className="flex-1">
+            <Text className="text-[12px] font-extrabold text-emerald-950 uppercase tracking-wide">
+              Serving
+            </Text>
+            <Text className="text-[13px] font-medium text-emerald-900 mt-0.5 leading-5">
+              {parsed.serving}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {/* ── YouTube recommendation card ── */}
+      {youtubeSearchUrl && (
+        <View className="rounded-2xl bg-white border border-rose-200/90 p-4 shadow-xs mb-2">
+          <View className="flex-row items-center gap-2 mb-1.5">
+            <Ionicons name="logo-youtube" size={18} color="#dc2626" />
+            <Text className="text-[13px] font-extrabold text-slate-900">
+              Watch Video Tutorial
+            </Text>
+          </View>
+          <Text className="text-[12px] text-slate-600 mb-2 leading-4" numberOfLines={2}>
+            {youtubeLabel}
+          </Text>
+          <Text className="text-[11px] text-slate-400 mb-3 leading-4">
+            Shows visual cooking technique. Your recipe ingredients above are already scaled.
+          </Text>
+          <Pressable
+            onPress={() => Linking.openURL(youtubeSearchUrl)}
+            className="flex-row items-center justify-center gap-2 bg-[#dc2626] active:bg-[#b91c1c] py-2.5 px-4 rounded-xl shadow-xs"
+          >
+            <Ionicons name="play-circle" size={16} color="white" />
+            <Text className="text-[13px] font-bold text-white tracking-wide">
+              Watch on YouTube
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function FormattedMessageBubble({ text, isUser }: { text: string; isUser: boolean }) {
+  if (isUser) {
+    return (
+      <Text className="text-[15px] leading-6 text-white font-medium">
+        {text}
+      </Text>
+    );
+  }
+
+  const paragraphs = text.split(/\n\s*\n/);
+  return (
+    <View className="gap-y-2.5">
+      {paragraphs.map((p, pIdx) => {
+        const trimmed = p.trim();
+        if (!trimmed) return null;
+
+        if (trimmed.includes("\n*") || trimmed.startsWith("*")) {
+          const bullets = trimmed.split("\n").filter((l) => l.trim().length > 0);
+          return (
+            <View key={pIdx} className="gap-y-1.5 my-1">
+              {bullets.map((b, bIdx) => {
+                const cleanB = b.replace(/^[*•-]\s*/, "").trim();
+                return (
+                  <View key={bIdx} className="flex-row items-start gap-2">
+                    <View className="h-1.5 w-1.5 rounded-full bg-[#0d631b] mt-2 shrink-0" />
+                    <Text className="text-[14px] leading-5 text-slate-800 flex-1">
+                      {renderFormattedText(cleanB, false)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        }
+
+        return (
+          <Text key={pIdx} className="text-[14px] leading-6 text-slate-800">
+            {renderFormattedText(trimmed, false)}
+          </Text>
+        );
+      })}
+    </View>
   );
 }
 
@@ -553,6 +938,9 @@ export default function GroceryHistoryChat() {
           {/* ── Messages ── */}
           {messages.map((msg) => {
             const isUser = msg.sender === "user";
+            const parsedRecipe = !isUser && !msg.isError ? parseRecipeCard(msg.text) : null;
+            const isRecipeCard = parsedRecipe?.isRecipe ?? false;
+
             return (
               <View
                 key={msg.id}
@@ -565,55 +953,67 @@ export default function GroceryHistoryChat() {
                   </View>
                 )}
 
-                <View className={`max-w-[85%] ${isUser ? "items-end" : "items-start"}`}>
+                <View className={`${isRecipeCard ? "w-[90%]" : "max-w-[85%]"} ${isUser ? "items-end" : "items-start"}`}>
                   <View
-                    className={`p-4 rounded-2xl shadow-xs ${isUser
-                      ? "bg-[#0d631b] rounded-tr-xs"
-                      : msg.isError
-                        ? "bg-rose-50 border border-rose-200 rounded-tl-xs"
-                        : "bg-[#f0fdf4] border border-[#bbf7d0] rounded-tl-xs"
-                      }`}
-                  >
-                    <Text
-                      className={`text-[15px] leading-6 ${isUser
-                        ? "text-white font-medium"
+                    className={`rounded-2xl shadow-xs ${
+                      isUser
+                        ? "bg-[#0d631b] p-4 rounded-tr-xs"
                         : msg.isError
-                          ? "text-rose-700 font-medium"
-                          : "text-slate-900 font-medium"
-                        }`}
-                    >
-                      {msg.text}
-                    </Text>
+                        ? "bg-rose-50 border border-rose-200 p-4 rounded-tl-xs"
+                        : isRecipeCard
+                        ? "bg-[#f8faf7] border border-[#d1fae5] p-3 rounded-tl-xs w-full"
+                        : "bg-[#f0fdf4] border border-[#bbf7d0] p-4 rounded-tl-xs"
+                    }`}
+                  >
+                    {isUser ? (
+                      <Text className="text-[15px] leading-6 text-white font-medium">
+                        {msg.text}
+                      </Text>
+                    ) : msg.isError ? (
+                      <Text className="text-[15px] leading-6 text-rose-700 font-medium">
+                        {msg.text}
+                      </Text>
+                    ) : isRecipeCard && parsedRecipe ? (
+                      <RecipeCardBubble
+                        parsed={parsedRecipe}
+                        youtubeSearchUrl={msg.youtubeSearchUrl}
+                        youtubeLabel={msg.youtubeLabel}
+                      />
+                    ) : (
+                      <>
+                        <FormattedMessageBubble text={msg.text} isUser={false} />
 
-                    {/* ── YouTube recommendation card ── */}
-                    {!isUser && msg.youtubeSearchUrl && (
-                      <View className="mt-4 pt-3 border-t border-[#bbf7d0]">
-                        <View className="flex-row items-center gap-1.5 mb-2">
-                          <Ionicons name="logo-youtube" size={16} color="#dc2626" />
-                          <Text className="text-[13px] font-bold text-slate-800">
-                            📺 Watch a Video Tutorial
-                          </Text>
-                        </View>
-                        <Text
-                          className="text-[12px] text-slate-600 mb-3 leading-[18px]"
-                          numberOfLines={2}
-                        >
-                          {msg.youtubeLabel}
-                        </Text>
-                        <Text className="text-[11px] text-slate-400 mb-2.5 leading-[16px]">
-                          This video shows the cooking method. Your recipe quantities above are
-                          already scaled for {selectedRecipeTitle.match(/\d+/)?.[0] || "your"} people.
-                        </Text>
-                        <Pressable
-                          onPress={() => Linking.openURL(msg.youtubeSearchUrl!)}
-                          className="flex-row items-center gap-2 self-start bg-[#dc2626] active:bg-[#b91c1c] px-4 py-2.5 rounded-xl shadow-sm"
-                        >
-                          <Ionicons name="play-circle" size={16} color="white" />
-                          <Text className="text-[13px] font-bold text-white">
-                            ▶ Watch on YouTube
-                          </Text>
-                        </Pressable>
-                      </View>
+                        {/* ── YouTube recommendation card ── */}
+                        {msg.youtubeSearchUrl && (
+                          <View className="mt-4 pt-3 border-t border-[#bbf7d0]">
+                            <View className="flex-row items-center gap-1.5 mb-2">
+                              <Ionicons name="logo-youtube" size={16} color="#dc2626" />
+                              <Text className="text-[13px] font-bold text-slate-800">
+                                📺 Watch a Video Tutorial
+                              </Text>
+                            </View>
+                            <Text
+                              className="text-[12px] text-slate-600 mb-3 leading-[18px]"
+                              numberOfLines={2}
+                            >
+                              {msg.youtubeLabel}
+                            </Text>
+                            <Text className="text-[11px] text-slate-400 mb-2.5 leading-[16px]">
+                              This video shows the cooking method. Your recipe quantities above are
+                              already scaled for {selectedRecipeTitle.match(/\d+/)?.[0] || "your"} people.
+                            </Text>
+                            <Pressable
+                              onPress={() => Linking.openURL(msg.youtubeSearchUrl!)}
+                              className="flex-row items-center gap-2 self-start bg-[#dc2626] active:bg-[#b91c1c] px-4 py-2.5 rounded-xl shadow-sm"
+                            >
+                              <Ionicons name="play-circle" size={16} color="white" />
+                              <Text className="text-[13px] font-bold text-white">
+                                ▶ Watch on YouTube
+                              </Text>
+                            </Pressable>
+                          </View>
+                        )}
+                      </>
                     )}
                   </View>
                   <Text className="text-[10px] font-medium text-slate-400 mt-1 px-1">

@@ -1,9 +1,19 @@
 import OpenAI from "openai";
 
-const nvidiaClient = new OpenAI({
-  baseURL: "https://integrate.api.nvidia.com/v1",
-  apiKey: process.env.NVIDIA_API_KEY || "",
-});
+let _nvidiaClient: OpenAI | null = null;
+function getNvidiaClient(): OpenAI | null {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) return null;
+  if (!_nvidiaClient) {
+    _nvidiaClient = new OpenAI({
+      baseURL: "https://integrate.api.nvidia.com/v1",
+      apiKey,
+    });
+  }
+  return _nvidiaClient;
+}
+
+const NVIDIA_MODEL = process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct";
 
 export interface StoreProductContext {
   id: string;
@@ -104,8 +114,19 @@ Return STRICT JSON only (no markdown, no extra text) matching this schema:
   try {
     console.log(`Calling NVIDIA AI for recipe: "${recipeName}" (${targetDescription})...`);
 
-    const aiPromise = nvidiaClient.chat.completions.create({
-      model: "meta/llama-3.1-8b-instruct",
+    const client = getNvidiaClient();
+    if (!client) {
+      console.warn("NVIDIA_API_KEY is not configured.");
+      return {
+        recipeName,
+        servings: numVal,
+        ingredients: [],
+        instructions: [`Prepare ingredients for ${recipeName}.`, `Cook thoroughly according to serving size (${targetDescription}).`]
+      };
+    }
+
+    const aiPromise = client.chat.completions.create({
+      model: NVIDIA_MODEL,
       messages: [
         {
           role: "system",
@@ -122,7 +143,7 @@ Return STRICT JSON only (no markdown, no extra text) matching this schema:
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("NVIDIA AI API call timed out after 45s")), 45000)
+      setTimeout(() => reject(new Error("NVIDIA AI API call timed out after 35s")), 35000)
     );
 
     const response: any = await Promise.race([aiPromise, timeoutPromise]);
@@ -241,9 +262,14 @@ Your primary goal: explain what the user needs to do, step by step, so that a pe
       }
     ];
 
+    const client = getNvidiaClient();
+    if (!client) {
+      return "Sorry, the AI service is currently not configured.";
+    }
+
     // Wrap in a 45-second timeout (same pattern as generateGroceryRecipe)
-    const aiPromise = nvidiaClient.chat.completions.create({
-      model: "meta/llama-3.1-8b-instruct",
+    const aiPromise = client.chat.completions.create({
+      model: NVIDIA_MODEL,
       messages,
       temperature: 0.4,
       top_p: 0.8,
@@ -251,7 +277,7 @@ Your primary goal: explain what the user needs to do, step by step, so that a pe
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("NVIDIA AI Chat timed out after 45s")), 45000)
+      setTimeout(() => reject(new Error("NVIDIA AI Chat timed out after 35s")), 35000)
     );
 
     const response: any = await Promise.race([aiPromise, timeoutPromise]);

@@ -201,6 +201,92 @@ const COMMON_RECIPES = [
   "Tom Yum Soup", "Pad Thai", "Green Curry", "Red Curry", "Massaman Curry",
 ];
 
+export function getRecipeQuantityTypes(recipeName: string): {
+  allowPeople: boolean;
+  allowKg: boolean;
+  allowL: boolean;
+} {
+  const norm = (recipeName || "").toLowerCase().trim();
+  if (!norm) {
+    return { allowPeople: true, allowKg: true, allowL: true };
+  }
+
+  // 1. Pure Liquids, Beverages & Soups (e.g. Tomato Soup, Lentil Soup, Juice, Smoothie, Milkshake, Lassi)
+  // Measured by People or Litres (L). "Kg" is disabled for pure liquids/soups.
+  const isPureLiquid =
+    norm.includes("soup") ||
+    norm.includes("smoothie") ||
+    norm.includes("milkshake") ||
+    norm.includes("lassi") ||
+    norm.includes("juice") ||
+    norm.includes("shake");
+
+  if (isPureLiquid) {
+    return { allowPeople: true, allowKg: false, allowL: true };
+  }
+
+  // 2. Curries, Noodle dishes, Stews, Porridge that support ALL THREE: People, Kg, and L
+  // E.g. "Chicken Noodles", "Vegetable Noodles", "Dhal Curry", "Fish Curry", "Ramen", "Udon", "Khichdi", "Haleem", "Pongal"
+  const allowsAllThree =
+    norm.includes("noodle") ||
+    norm.includes("curry") ||
+    norm.includes("sambar") ||
+    norm.includes("dhal") ||
+    norm.includes("dal") ||
+    norm.includes("ramen") ||
+    norm.includes("udon") ||
+    norm.includes("pad thai") ||
+    norm.includes("haleem") ||
+    norm.includes("khichdi") ||
+    norm.includes("pongal");
+
+  if (allowsAllThree) {
+    return { allowPeople: true, allowKg: true, allowL: true };
+  }
+
+  // 3. Piece-based / Fast food / Bakery / Bread items (e.g. Pizza, Burger, Sandwich, Tacos, Hoppers)
+  // Measured by People. "Kg" and "L" are disabled.
+  const isPieceCountable =
+    norm.includes("pizza") ||
+    norm.includes("burger") ||
+    norm.includes("sandwich") ||
+    norm.includes("taco") ||
+    norm.includes("burrito") ||
+    norm.includes("nacho") ||
+    norm.includes("quesadilla") ||
+    norm.includes("samosa") ||
+    norm.includes("pakora") ||
+    norm.includes("spring roll") ||
+    norm.includes("hopper") ||
+    norm.includes("idly") ||
+    norm.includes("dosa") ||
+    norm.includes("vada") ||
+    norm.includes("pancake") ||
+    norm.includes("waffle") ||
+    norm.includes("french toast") ||
+    norm.includes("omelette") ||
+    norm.includes("scrambled egg") ||
+    norm.includes("sushi") ||
+    norm.includes("tempura") ||
+    norm.includes("kebab") ||
+    norm.includes("tikka") ||
+    norm.includes("tandoori") ||
+    norm.includes("paratha") ||
+    norm.includes("chapathi") ||
+    norm.includes("roti") ||
+    norm.includes("cookie") ||
+    norm.includes("brownie") ||
+    norm.includes("muffin");
+
+  if (isPieceCountable) {
+    return { allowPeople: true, allowKg: false, allowL: false };
+  }
+
+  // 4. Solid Batch dishes: Biryani, Fried Rice, Pasta, Cakes, Salads, Meat cuts
+  // Measured by People or Kg. "L" (Litres) is disabled.
+  return { allowPeople: true, allowKg: true, allowL: false };
+}
+
 export default function AIRecipeGenerator() {
   const router = useRouter();
   const { user } = useAuth();
@@ -209,6 +295,17 @@ export default function AIRecipeGenerator() {
   const [recipeName, setRecipeName] = useState("");
   const [quantityType, setQuantityType] = useState("People");
   const [quantityValue, setQuantityValue] = useState("");
+
+  const availableQuantityTypes = getRecipeQuantityTypes(recipeName);
+
+  // Automatically adjust quantityType if the current one is disabled for this recipe
+  useEffect(() => {
+    if (quantityType === "Kg" && !availableQuantityTypes.allowKg) {
+      setQuantityType("People");
+    } else if (quantityType === "L" && !availableQuantityTypes.allowL) {
+      setQuantityType("People");
+    }
+  }, [recipeName, availableQuantityTypes.allowKg, availableQuantityTypes.allowL]);
   const [loading, setLoading] = useState(false);
   const [groceryList, setGroceryList] = useState<GeneratedItem[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -441,9 +538,16 @@ export default function AIRecipeGenerator() {
   };
 
   const getPlaceholder = () => {
-    if (quantityType === "People") return "How many people are you cooking for?";
-    if (quantityType === "Kg") return "Enter the required quantity in kilograms";
-    if (quantityType === "L") return "Enter the required quantity in liters";
+    const dish = recipeName.trim();
+    if (quantityType === "People") {
+      return dish ? `How many people are you cooking ${dish} for?` : "How many people are you cooking for?";
+    }
+    if (quantityType === "Kg") {
+      return dish ? `Enter weight in kg (e.g. 2 for 2 kg ${dish})` : "Enter required quantity in kilograms (e.g. 2)";
+    }
+    if (quantityType === "L") {
+      return dish ? `Enter volume in litres (e.g. 1.5 for 1.5 L ${dish})` : "Enter required quantity in liters (e.g. 1.5)";
+    }
     return "";
   };
 
@@ -823,30 +927,77 @@ export default function AIRecipeGenerator() {
           </View>
 
           <View className="mb-4 text-left">
-            <Text className="text-[14px] font-bold text-slate-800 mb-2">Select Quantity Type</Text>
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-[14px] font-bold text-slate-800">Select Quantity Type</Text>
+              {recipeName.trim().length > 0 && (
+                <View className="flex-row items-center gap-1">
+                  <Ionicons name="sparkles" size={12} color="#0d631b" />
+                  <Text className="text-[11px] font-bold text-[#0d631b]">Recipe-adapted</Text>
+                </View>
+              )}
+            </View>
             <View className="flex-row items-center gap-2.5">
-              {["People", "Kg", "L"].map((opt) => {
-                const isSelected = quantityType === opt;
+              {[
+                { label: "People", isAllowed: availableQuantityTypes.allowPeople },
+                { label: "Kg", isAllowed: availableQuantityTypes.allowKg },
+                { label: "L", isAllowed: availableQuantityTypes.allowL },
+              ].map(({ label, isAllowed }) => {
+                const isSelected = quantityType === label;
                 return (
                   <Pressable
-                    key={opt}
-                    onPress={() => setQuantityType(opt)}
+                    key={label}
+                    disabled={!isAllowed}
+                    onPress={() => isAllowed && setQuantityType(label)}
                     className="flex-1 items-center justify-center rounded-2xl py-3 border"
                     style={{
-                      backgroundColor: isSelected ? "#0d631b" : "#f8faf7",
-                      borderColor: isSelected ? "#0d631b" : "#e2e8f0",
+                      backgroundColor: !isAllowed
+                        ? "#f1f5f9"
+                        : isSelected
+                        ? "#0d631b"
+                        : "#f8faf7",
+                      borderColor: !isAllowed
+                        ? "#e2e8f0"
+                        : isSelected
+                        ? "#0d631b"
+                        : "#e2e8f0",
+                      opacity: !isAllowed ? 0.45 : 1,
                     }}
                   >
                     <Text
                       className="text-[15px] font-bold"
-                      style={{ color: isSelected ? "#ffffff" : "#374151" }}
+                      style={{
+                        color: !isAllowed
+                          ? "#94a3b8"
+                          : isSelected
+                          ? "#ffffff"
+                          : "#374151",
+                        textDecorationLine: !isAllowed ? "line-through" : "none",
+                      }}
                     >
-                      {opt}
+                      {label}
                     </Text>
+                    {!isAllowed && (
+                      <Text className="text-[9px] font-extrabold text-slate-400 mt-0.5 tracking-wider uppercase">
+                        Disabled
+                      </Text>
+                    )}
                   </Pressable>
                 );
               })}
             </View>
+
+            {recipeName.trim().length > 0 && (!availableQuantityTypes.allowKg || !availableQuantityTypes.allowL) && (
+              <View className="flex-row items-center gap-1.5 mt-2.5 px-1">
+                <Ionicons name="information-circle-outline" size={14} color="#64748b" />
+                <Text className="text-[11px] font-medium text-slate-500 flex-1">
+                  {!availableQuantityTypes.allowL && !availableQuantityTypes.allowKg
+                    ? `"${recipeName}" is measured by serving count (People).`
+                    : !availableQuantityTypes.allowL
+                    ? `Litres (L) is disabled for "${recipeName}" (solid/dry dish).`
+                    : `Kilograms (Kg) is disabled for "${recipeName}" (liquid dish/soup).`}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View className="mb-6 text-left">

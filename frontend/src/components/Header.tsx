@@ -1,14 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAddresses } from "@/context/AddressContext";
 import { useAuth, API_BASE_URL } from "@/context/AuthContext";
-import { useIsFocused } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 
 export default function Header({ onNotificationsPress }: { onNotificationsPress?: () => void }) {
   const { addresses } = useAddresses();
   const { user } = useAuth();
-  const isFocused = useIsFocused();
   const [unreadCount, setUnreadCount] = useState(0);
 
   const primaryAddress = addresses.find((address) => address.isPrimary);
@@ -37,13 +36,15 @@ export default function Header({ onNotificationsPress }: { onNotificationsPress?
     }
   };
 
-  useEffect(() => {
-    if (isFocused && user?.token) {
-      fetchUnreadCount();
-    } else if (!user?.token) {
-      setUnreadCount(0);
-    }
-  }, [isFocused, user]);
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.token) {
+        fetchUnreadCount();
+      } else {
+        setUnreadCount(0);
+      }
+    }, [user?.token])
+  );
 
   return (
     <View className="flex-row items-center justify-between bg-white px-4 py-3">
