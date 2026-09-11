@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma.js';
 import { generateGroceryRecipe, chatWithGroceryAI } from '../services/nvidiaAi.js';
-import { generateGroceryRecipeGemini } from '../services/geminiAi.js';
+import { generateGroceryRecipeGemini, chatWithGroceryGemini } from '../services/geminiAi.js';
 import { findBestProductMatch, StoreProductLike, baseUnit } from '../services/productMatcher.js';
 
 // Controller to handle AI Recipe Generation
@@ -134,23 +134,31 @@ export const generateRecipeController = async (req: Request, res: Response) => {
         };
       });
 
-    // Deduplicate: the AI may return multiple ingredients that resolve to the same
-    // store product (e.g. "Milk" and "Fresh Milk" both -> the same milk product).
-    const seenIds = new Set<string>();
-    const seenNames = new Set<string>();
-    const uniqueIngredients: any[] = [];
+    // Intelligently combine duplicate ingredients: if multiple ingredients resolve
+    // to the same store product or same name, sum their quantities and update display quantity.
+    const combinedMap = new Map<string, any>();
     for (const item of mappedIngredients) {
-      if (item.isDbMatched && item.id) {
-        if (seenIds.has(item.id)) continue;
-        seenIds.add(item.id);
-        uniqueIngredients.push(item);
+      const key = item.isDbMatched && item.id
+        ? `prod_${item.id}`
+        : `name_${String(item.name || "").trim().toLowerCase()}`;
+      if (!key || key === "name_") continue;
+
+      if (combinedMap.has(key)) {
+        const existing = combinedMap.get(key);
+        const mergedQty = clampQuantity(existing.quantity + item.quantity);
+        existing.quantity = mergedQty;
+        // Re-format displayQuantity for the combined amount
+        const prodBase = baseUnit(existing.unit);
+        if (prodBase === "kg" || prodBase === "g" || prodBase === "l" || prodBase === "ml") {
+          existing.displayQuantity = formatDisplayQuantity({ quantity: mergedQty, unit: existing.unit });
+        } else {
+          existing.displayQuantity = `${mergedQty} ${existing.unit || "pcs"}`;
+        }
       } else {
-        const key = String(item.name || "").trim().toLowerCase();
-        if (!key || seenNames.has(key)) continue;
-        seenNames.add(key);
-        uniqueIngredients.push(item);
+        combinedMap.set(key, { ...item });
       }
     }
+    const uniqueIngredients = Array.from(combinedMap.values());
 
     if (uniqueIngredients.length === 0) {
       return res.status(502).json({
@@ -195,7 +203,18 @@ export const chatController = async (req: Request, res: Response) => {
       take: 30
     });
 
-    const reply = await chatWithGroceryAI(message.trim(), history || []);
+    let reply: string | null = null;
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        reply = await chatWithGroceryGemini(message.trim(), history || []);
+      } catch (geminiErr) {
+        console.warn("Gemini Chat failed, falling back to NVIDIA:", geminiErr);
+      }
+    }
+
+    if (!reply) {
+      reply = await chatWithGroceryAI(message.trim(), history || []);
+    }
 
     // Filter matched store products for interactive product cards
     const matchedProducts = dbProducts.filter(p =>
