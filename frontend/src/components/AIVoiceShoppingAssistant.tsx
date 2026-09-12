@@ -21,9 +21,10 @@ import { resolveImageSource } from "@/utils/resolveImageSource";
 let ExpoSpeechRecognitionModule: any = null;
 try {
   const SpeechLib = require("expo-speech-recognition");
-  ExpoSpeechRecognitionModule = SpeechLib.ExpoSpeechRecognitionModule;
-} catch (error) {
-  console.warn("ExpoSpeechRecognition native module not found:", error);
+  ExpoSpeechRecognitionModule = SpeechLib?.ExpoSpeechRecognitionModule || null;
+} catch {
+  // Native module is not linked or running in standard Expo Go; voice assistant will fall back safely
+  ExpoSpeechRecognitionModule = null;
 }
 
 // Default store products fallback catalog

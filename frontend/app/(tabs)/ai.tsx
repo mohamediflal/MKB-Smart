@@ -26,15 +26,23 @@ const STORAGE_KEY_HISTORY = "@mkb_recipe_history";
 
 type MeasurementUnit = "kg" | "l";
 
-type HistoryItem = {
+export type RecipeIngredient = {
+  name: string;
+  quantity: number | string;
+  unit: string;
+  displayQuantity: string;
+};
+
+export type HistoryItem = {
   id: string;
   recipeName: string;
   quantityType: string;
   quantityValue: string;
   timestamp: number;
+  ingredients?: RecipeIngredient[];
 };
 
-function formatHistoryTitle(recipeName: string, quantityType: string, quantityValue: string) {
+export function formatHistoryTitle(recipeName: string, quantityType: string, quantityValue: string) {
   const name = recipeName.trim();
   const val = quantityValue.trim();
   if (quantityType === "People") {
@@ -340,6 +348,24 @@ export default function AIRecipeGenerator() {
     fetchStoreProducts();
   }, []);
 
+  // Load locally cached recipe history on initial mount for instant display
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY_HISTORY)
+      .then((stored) => {
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRecipeHistory(parsed);
+            }
+          } catch (e) {
+            console.warn("Failed to parse cached recipe history:", e);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Fetch recipe history for the logged-in user
   useEffect(() => {
     if (user && user.token) {
@@ -348,29 +374,19 @@ export default function AIRecipeGenerator() {
           Authorization: `Bearer ${user.token}`,
         },
       })
-        .then((res) => {
-          if (!res.ok) {
-            throw new Error(`HTTP error! status: ${res.status}`);
-          }
-          const contentType = res.headers.get("content-type");
-          if (!contentType || !contentType.includes("application/json")) {
-            throw new TypeError("Response was not JSON");
-          }
-          return res.json();
+        .then(async (res) => {
+          if (!res.ok) return null;
+          return res.json().catch(() => null);
         })
         .then((data) => {
           if (data && data.success && Array.isArray(data.history)) {
             setRecipeHistory(data.history);
-          } else {
-            setRecipeHistory([]);
+            AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(data.history)).catch(() => {});
           }
         })
         .catch((err) => {
-          console.error("Error fetching recipe history:", err.message || err);
-          setRecipeHistory([]);
+          console.warn("[Recipe History] Initial load notice:", err?.message || err);
         });
-    } else {
-      setRecipeHistory([]);
     }
   }, [user]);
 
@@ -456,16 +472,36 @@ export default function AIRecipeGenerator() {
     return "Biriyani for 10 people";
   };
 
-  const openGroceryHistoryChat = (titleOverride?: string) => {
+  const openGroceryHistoryChat = (titleOverride?: string, ingredientsOverride?: RecipeIngredient[]) => {
     const titleToPass = titleOverride || getActiveRecipeTitle();
+    const ingsToPass =
+      ingredientsOverride && ingredientsOverride.length > 0
+        ? ingredientsOverride
+        : groceryList.length > 0
+        ? groceryList.map((g) => ({
+            name: g.name,
+            quantity: g.quantity,
+            unit: g.subtitle,
+            displayQuantity: g.displayQuantity || `${g.quantity} ${g.subtitle}`.trim(),
+          }))
+        : undefined;
+
     setShowResults(false);
     router.push({
       pathname: "/GroceryHistoryChat",
-      params: { recipeTitle: titleToPass },
+      params: {
+        recipeTitle: titleToPass,
+        ingredients: ingsToPass && ingsToPass.length > 0 ? JSON.stringify(ingsToPass) : undefined,
+      },
     });
   };
 
-  const saveRecipeToHistory = async (rName: string, qType: string, qVal: string) => {
+  const saveRecipeToHistory = async (
+    rName: string,
+    qType: string,
+    qVal: string,
+    ingredientsList?: RecipeIngredient[]
+  ) => {
     if (!rName.trim() || !qVal.trim()) return;
     const rNameClean = rName.trim();
     const qTypeClean = qType.trim();
@@ -477,14 +513,19 @@ export default function AIRecipeGenerator() {
       quantityType: qTypeClean,
       quantityValue: qValClean,
       timestamp: Date.now(),
+      ingredients: ingredientsList || [],
     };
 
-    // Optimistic local state update
+    // Optimistic local state update + persistent AsyncStorage cache
     setRecipeHistory((prev) => {
       const filtered = prev.filter(
         (h) => !(h.recipeName.toLowerCase() === rNameClean.toLowerCase() && h.quantityType === qTypeClean && h.quantityValue === qValClean)
       );
-      return [tempItem, ...filtered];
+      const updated = [tempItem, ...filtered];
+      AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)).catch((e) =>
+        console.warn("Failed to cache recipe history to AsyncStorage:", e)
+      );
+      return updated;
     });
 
     if (user && user.token) {
@@ -499,29 +540,39 @@ export default function AIRecipeGenerator() {
             recipeName: rNameClean,
             quantityType: qTypeClean,
             quantityValue: qValClean,
+            ingredients: ingredientsList || [],
           }),
         });
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          const errData = await res.json().catch(() => null);
+          const errMsg = errData?.message || `HTTP error! status: ${res.status}`;
+          console.warn(`[Recipe History] Cloud sync response (${res.status}):`, errMsg);
+          return;
         }
-        const contentType = res.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new TypeError("Response was not JSON");
-        }
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
         if (data && data.success && data.item) {
-          setRecipeHistory((prev) =>
-            prev.map((item) => (item.id === tempItem.id ? data.item : item))
-          );
+          setRecipeHistory((prev) => {
+            const updated = prev.map((item) =>
+              item.id === tempItem.id
+                ? { ...data.item, ingredients: ingredientsList || data.item.ingredients || [] }
+                : item
+            );
+            AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)).catch(() => {});
+            return updated;
+          });
         }
       } catch (err) {
-        console.error("Error saving recipe history to DB:", err);
+        console.warn("[Recipe History] Sync to DB warning:", err);
       }
     }
   };
 
   const handleDeleteHistory = async (id: string) => {
-    setRecipeHistory((prev) => prev.filter((item) => item.id !== id));
+    setRecipeHistory((prev) => {
+      const updated = prev.filter((item) => item.id !== id);
+      AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
 
     if (user && user.token) {
       try {
@@ -608,8 +659,15 @@ export default function AIRecipeGenerator() {
             };
           });
 
+          const ingredientsForHistory: RecipeIngredient[] = generated.map((g) => ({
+            name: g.name,
+            quantity: g.quantity,
+            unit: g.subtitle,
+            displayQuantity: g.displayQuantity || `${g.quantity} ${g.subtitle}`.trim(),
+          }));
+
           setGroceryList(generated);
-          saveRecipeToHistory(nameToUse, typeToUse, valToUse);
+          saveRecipeToHistory(nameToUse, typeToUse, valToUse, ingredientsForHistory);
           setShowResults(true);
           setRecipeName("");
           setQuantityType("People");
@@ -1056,7 +1114,7 @@ export default function AIRecipeGenerator() {
                       setRecipeName(hItem.recipeName);
                       setQuantityType(hItem.quantityType);
                       setQuantityValue(hItem.quantityValue);
-                      openGroceryHistoryChat(cardTitle);
+                      openGroceryHistoryChat(cardTitle, hItem.ingredients);
                     }}
                     onDelete={() => handleDeleteHistory(hItem.id)}
                   />
@@ -1199,15 +1257,27 @@ export default function AIRecipeGenerator() {
               )}
             </ScrollView>
 
-            <Pressable
-              onPress={handleAddToCart}
-              className="flex-row items-center justify-center rounded-2xl bg-[#0d631b] active:bg-[#0a4d15] py-4 shadow-md"
-            >
-              <Ionicons name="cart-outline" size={20} color="white" className="mr-2" />
-              <Text className="text-white text-base font-bold uppercase tracking-wide">
-                Add Available Products to Cart
-              </Text>
-            </Pressable>
+            <View className="gap-2.5">
+              <Pressable
+                onPress={() => openGroceryHistoryChat()}
+                className="flex-row items-center justify-center rounded-2xl bg-[#f0fdf4] border border-[#bbf7d0] active:bg-emerald-100 py-3.5 shadow-xs"
+              >
+                <Ionicons name="sparkles" size={18} color="#0d631b" />
+                <Text className="ml-2 text-[#0d631b] text-[15px] font-bold">
+                  View Cooking Steps in AI Chat
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleAddToCart}
+                className="flex-row items-center justify-center rounded-2xl bg-[#0d631b] active:bg-[#0a4d15] py-4 shadow-md"
+              >
+                <Ionicons name="cart-outline" size={20} color="white" />
+                <Text className="ml-2 text-white text-base font-bold uppercase tracking-wide">
+                  Add Available Products to Cart
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>

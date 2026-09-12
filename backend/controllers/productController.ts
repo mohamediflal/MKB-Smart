@@ -10,6 +10,7 @@ const uploadToCloudinary = async (file: { buffer: Buffer; mimetype: string }): P
   const result = await cloudinary.uploader.upload(dataURI, {
     folder: 'products',
     resource_type: 'image',
+    timeout: 60000,
   });
   return result.secure_url;
 };
@@ -66,7 +67,7 @@ export const addProduct = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Add Product Error:', error);
-    return res.status(500).json({ message: error.message || 'Internal server error' });
+    return res.status(500).json({ message: error?.message || error?.error?.message || 'Internal server error' });
   }
 };
 
@@ -143,7 +144,7 @@ export const updateProduct = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Update Product Error:', error);
-    return res.status(500).json({ message: error.message || 'Internal server error' });
+    return res.status(500).json({ message: error?.message || error?.error?.message || 'Internal server error' });
   }
 };
 

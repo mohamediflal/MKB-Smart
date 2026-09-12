@@ -241,6 +241,7 @@ export default function Profile() {
               label="Language"
               value="English"
               showDivider
+              onPress={() => router.push("/language")}
             />
             <MenuRow
               icon="help-circle-outline"
