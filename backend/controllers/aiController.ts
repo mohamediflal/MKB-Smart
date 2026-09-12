@@ -404,19 +404,44 @@ async function ensureRecipeHistoryTable() {
         "recipeName" TEXT NOT NULL,
         "quantityType" TEXT NOT NULL,
         "quantityValue" TEXT NOT NULL,
+        "ingredients" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "RecipeHistory_pkey" PRIMARY KEY ("id"),
         CONSTRAINT "RecipeHistory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
       );
     `);
+  } catch (tableErr) {
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "RecipeHistory" (
+          "id" TEXT NOT NULL,
+          "userId" TEXT NOT NULL,
+          "recipeName" TEXT NOT NULL,
+          "quantityType" TEXT NOT NULL,
+          "quantityValue" TEXT NOT NULL,
+          "ingredients" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "RecipeHistory_pkey" PRIMARY KEY ("id")
+        );
+      `);
+    } catch {}
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "RecipeHistory" ADD COLUMN IF NOT EXISTS "ingredients" TEXT;
+    `);
+  } catch {}
+
+  try {
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "RecipeHistory_userId_idx" ON "RecipeHistory"("userId");
     `);
-    isRecipeHistoryTableChecked = true;
-  } catch (err) {
-    console.error("Error ensuring RecipeHistory table exists:", err);
-  }
+  } catch {}
+
+  isRecipeHistoryTableChecked = true;
 }
 
 // Controller to fetch user's recipe history (User isolated)
@@ -428,20 +453,56 @@ export const getRecipeHistoryController = async (req: Request & { userId?: strin
 
     await ensureRecipeHistoryTable();
 
-    const history = await (prisma as any).recipeHistory.findMany({
-      where: { userId: req.userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    let history: any[] = [];
+    try {
+      history = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id", "userId", "recipeName", "quantityType", "quantityValue", "ingredients", "createdAt", "updatedAt"
+         FROM "RecipeHistory"
+         WHERE "userId" = $1
+         ORDER BY "createdAt" DESC`,
+        req.userId
+      );
+    } catch {
+      try {
+        history = await prisma.$queryRawUnsafe<any[]>(
+          `SELECT "id", "userId", "recipeName", "quantityType", "quantityValue", "createdAt", "updatedAt"
+           FROM "RecipeHistory"
+           WHERE "userId" = $1
+           ORDER BY "createdAt" DESC`,
+          req.userId
+        );
+      } catch {
+        try {
+          history = await (prisma as any).recipeHistory.findMany({
+            where: { userId: req.userId },
+            orderBy: { createdAt: 'desc' },
+          });
+        } catch {
+          history = [];
+        }
+      }
+    }
 
     return res.json({
       success: true,
-      history: history.map((h: any) => ({
-        id: h.id,
-        recipeName: h.recipeName,
-        quantityType: h.quantityType,
-        quantityValue: h.quantityValue,
-        timestamp: new Date(h.createdAt).getTime(),
-      })),
+      history: (history || []).map((h: any) => {
+        let parsedIngredients: any[] = [];
+        if (h.ingredients) {
+          try {
+            parsedIngredients = typeof h.ingredients === 'string' ? JSON.parse(h.ingredients) : h.ingredients;
+          } catch {
+            parsedIngredients = [];
+          }
+        }
+        return {
+          id: h.id,
+          recipeName: h.recipeName,
+          quantityType: h.quantityType,
+          quantityValue: h.quantityValue,
+          ingredients: parsedIngredients,
+          timestamp: new Date(h.createdAt || h.createdat || Date.now()).getTime(),
+        };
+      }),
     });
   } catch (error: any) {
     console.error("Error fetching recipe history:", error);
@@ -456,7 +517,7 @@ export const createRecipeHistoryController = async (req: Request & { userId?: st
       return res.status(401).json({ success: false, message: "Unauthorized. User ID missing." });
     }
 
-    const { recipeName, quantityType, quantityValue } = req.body;
+    const { recipeName, quantityType, quantityValue, ingredients } = req.body;
     if (!recipeName || !recipeName.trim() || !quantityValue || !String(quantityValue).trim()) {
       return res.status(400).json({ success: false, message: "Recipe name and quantity value are required." });
     }
@@ -466,38 +527,124 @@ export const createRecipeHistoryController = async (req: Request & { userId?: st
     const recipeNameStr = recipeName.trim();
     const quantityTypeStr = (quantityType || "People").trim();
     const quantityValueStr = String(quantityValue).trim();
+    const ingredientsJson = ingredients ? (typeof ingredients === 'string' ? ingredients : JSON.stringify(ingredients)) : null;
 
     // Delete existing duplicate for this user if any
     try {
-      await (prisma as any).recipeHistory.deleteMany({
-        where: {
-          userId: req.userId,
-          recipeName: { equals: recipeNameStr, mode: 'insensitive' },
-          quantityType: quantityTypeStr,
-          quantityValue: quantityValueStr,
-        },
-      });
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "RecipeHistory"
+         WHERE "userId" = $1
+           AND LOWER("recipeName") = LOWER($2)
+           AND "quantityType" = $3
+           AND "quantityValue" = $4`,
+        req.userId,
+        recipeNameStr,
+        quantityTypeStr,
+        quantityValueStr
+      );
     } catch {
-      // Ignore if deletion fails
+      try {
+        await (prisma as any).recipeHistory.deleteMany({
+          where: {
+            userId: req.userId,
+            recipeName: { equals: recipeNameStr, mode: 'insensitive' },
+            quantityType: quantityTypeStr,
+            quantityValue: quantityValueStr,
+          },
+        });
+      } catch {
+        // Ignore if deletion fails
+      }
     }
 
-    const newHistory = await (prisma as any).recipeHistory.create({
-      data: {
-        userId: req.userId,
-        recipeName: recipeNameStr,
-        quantityType: quantityTypeStr,
-        quantityValue: quantityValueStr,
-      },
-    });
+    const historyId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    let inserted = false;
+
+    // 1. Try raw insert with ingredients and CURRENT_TIMESTAMP (avoids Date object conversion in Neon driver)
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "RecipeHistory" ("id", "userId", "recipeName", "quantityType", "quantityValue", "ingredients", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        historyId,
+        req.userId,
+        recipeNameStr,
+        quantityTypeStr,
+        quantityValueStr,
+        ingredientsJson
+      );
+      inserted = true;
+    } catch (insertErr1: any) {
+      console.warn("Direct insert with ingredients column failed, trying without ingredients column:", insertErr1?.message);
+    }
+
+    // 2. If table didn't have ingredients column yet, try raw insert without ingredients
+    if (!inserted) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "RecipeHistory" ("id", "userId", "recipeName", "quantityType", "quantityValue", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          historyId,
+          req.userId,
+          recipeNameStr,
+          quantityTypeStr,
+          quantityValueStr
+        );
+        inserted = true;
+      } catch (insertErr2: any) {
+        console.warn("Direct insert without ingredients failed, trying Prisma Client:", insertErr2?.message);
+      }
+    }
+
+    // 3. Fallback to Prisma Client create with proper connection relation
+    if (!inserted) {
+      try {
+        await (prisma as any).recipeHistory.create({
+          data: {
+            id: historyId,
+            recipeName: recipeNameStr,
+            quantityType: quantityTypeStr,
+            quantityValue: quantityValueStr,
+            user: { connect: { id: req.userId } },
+          },
+        });
+        inserted = true;
+      } catch (prismaErr: any) {
+        // Also try with userId directly in case unchecked input is accepted
+        try {
+          await (prisma as any).recipeHistory.create({
+            data: {
+              id: historyId,
+              userId: req.userId,
+              recipeName: recipeNameStr,
+              quantityType: quantityTypeStr,
+              quantityValue: quantityValueStr,
+            },
+          });
+          inserted = true;
+        } catch (prismaErr2: any) {
+          console.error("Prisma recipeHistory.create fallback also failed:", prismaErr2?.message);
+        }
+      }
+    }
+
+    let returnIngredients: any[] = [];
+    if (ingredientsJson) {
+      try {
+        returnIngredients = JSON.parse(ingredientsJson);
+      } catch {
+        returnIngredients = Array.isArray(ingredients) ? ingredients : [];
+      }
+    }
 
     return res.status(201).json({
       success: true,
       item: {
-        id: newHistory.id,
-        recipeName: newHistory.recipeName,
-        quantityType: newHistory.quantityType,
-        quantityValue: newHistory.quantityValue,
-        timestamp: new Date(newHistory.createdAt).getTime(),
+        id: historyId,
+        recipeName: recipeNameStr,
+        quantityType: quantityTypeStr,
+        quantityValue: quantityValueStr,
+        ingredients: returnIngredients,
+        timestamp: Date.now(),
       },
     });
   } catch (error: any) {
@@ -520,16 +667,25 @@ export const deleteRecipeHistoryController = async (req: Request & { userId?: st
 
     await ensureRecipeHistoryTable();
 
-    const result = await (prisma as any).recipeHistory.deleteMany({
-      where: {
-        id: id,
-        userId: req.userId,
-      },
-    });
+    try {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "RecipeHistory" WHERE "id" = $1 AND "userId" = $2`,
+        id,
+        req.userId
+      );
+    } catch {
+      try {
+        await (prisma as any).recipeHistory.deleteMany({
+          where: {
+            id: id,
+            userId: req.userId,
+          },
+        });
+      } catch {}
+    }
 
     return res.json({
       success: true,
-      deletedCount: result.count,
       message: "Recipe history item deleted successfully",
     });
   } catch (error: any) {

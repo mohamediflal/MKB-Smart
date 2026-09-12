@@ -6,9 +6,10 @@ import { useRouter } from "expo-router";
 let ExpoSpeechRecognitionModule: any = null;
 try {
     const SpeechLib = require("expo-speech-recognition");
-    ExpoSpeechRecognitionModule = SpeechLib.ExpoSpeechRecognitionModule;
-} catch (error) {
-    console.warn("ExpoSpeechRecognition native module not found:", error);
+    ExpoSpeechRecognitionModule = SpeechLib?.ExpoSpeechRecognitionModule || null;
+} catch {
+    // Native module is not linked or running in standard Expo Go; voice search will fall back safely
+    ExpoSpeechRecognitionModule = null;
 }
 
 import ProductCard from "@/components/ProductCard";

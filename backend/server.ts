@@ -1,3 +1,12 @@
+import dns from 'node:dns';
+import http from 'node:http';
+import https from 'node:https';
+
+// Prioritize IPv4 and disable autoSelectFamily to prevent IPv6/NAT64 timeouts on Windows
+dns.setDefaultResultOrder('ipv4first');
+if (http.globalAgent) (http.globalAgent as any).options.autoSelectFamily = false;
+if (https.globalAgent) (https.globalAgent as any).options.autoSelectFamily = false;
+
 import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import 'dotenv/config';
@@ -40,6 +49,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction) => {
     res.status(500).json({ message: error.message });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT} (0.0.0.0)`);
 });

@@ -190,7 +190,7 @@ RESPONSE STYLE RULES — follow these strictly:
    ### 🍴 Serving
    [Serving suggestion: e.g. Serve hot with your favorite accompaniment.]
 
-5. SCALE quantities correctly based on the target in the user request.
+5. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, or recalculating any ingredients or quantities. Otherwise, scale quantities correctly based on the target in the user request.
 6. If a section like Cooking Tips is not needed for a simple recipe, omit it rather than leaving it empty.
 7. Keep each step's paragraph short and focused so users can easily read it on mobile screens.
 8. For meat, poultry, or seafood, include basic food safety guidance (e.g. chicken must be fully cooked — no pink inside, juices run clear).
