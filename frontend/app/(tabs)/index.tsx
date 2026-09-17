@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "@/components/Header";
@@ -31,33 +31,58 @@ export default function Home() {
   const bannerWidth = width;
 
   const [productList, setProductList] = useState<any[]>([]);
+  const [hotDealsList, setHotDealsList] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const mapProduct = (p: any) => ({
+    id: p.id,
+    name: p.name,
+    subtitle: `${p.unit || "piece"}, Price`,
+    price: `Rs. ${p.price}`,
+    imageSource: p.image ? { uri: p.image } : BEST_SELLING[0].imageSource,
+    category: p.category?.name || "Uncategorized",
+    stock: p.stock,
+  });
 
   const fetchProducts = async (showLoadingIndicator = true) => {
     try {
       if (showLoadingIndicator) setLoadingProducts(true);
-      const res = await fetch(`${API_BASE_URL}/api/products/list`);
-      if (res.ok) {
-        const data = await res.json();
-        // Filter to only ACTIVE products
+
+      const [productsRes, hotDealsRes] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/api/products/list`),
+        fetch(`${API_BASE_URL}/api/products/most-ordered?limit=5`),
+      ]);
+
+      let mappedAll: any[] = [];
+      if (productsRes.status === "fulfilled" && productsRes.value.ok) {
+        const data = await productsRes.value.json();
         const activeOnly = data.filter((p: any) => p.status === 'ACTIVE');
-        const mapped = activeOnly.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          subtitle: `${p.unit || "piece"}, Price`,
-          price: `Rs. ${p.price}`,
-          imageSource: p.image ? { uri: p.image } : BEST_SELLING[0].imageSource,
-          category: p.category?.name || "Uncategorized",
-          stock: p.stock,
-        }));
-        setProductList(mapped);
+        mappedAll = activeOnly.map(mapProduct);
+        setProductList(mappedAll);
       } else {
-        setProductList([...BEST_SELLING, ...RECOMMENDED]);
+        mappedAll = [...BEST_SELLING, ...RECOMMENDED];
+        setProductList(mappedAll);
+      }
+
+      if (hotDealsRes.status === "fulfilled" && hotDealsRes.value.ok) {
+        const hotData = await hotDealsRes.value.json();
+        const activeHot = Array.isArray(hotData) ? hotData.filter((p: any) => p.status === 'ACTIVE') : [];
+        if (activeHot.length > 0) {
+          setHotDealsList(activeHot.map(mapProduct));
+        } else {
+          // If no products have been ordered yet, fallback to default products
+          setHotDealsList(mappedAll.slice(0, 5));
+        }
+      } else {
+        // Fallback to default products if request fails
+        setHotDealsList(mappedAll.length > 0 ? mappedAll.slice(0, 5) : BEST_SELLING);
       }
     } catch (err) {
       console.error("Error fetching products in Home:", err);
-      setProductList([...BEST_SELLING, ...RECOMMENDED]);
+      const fallback = [...BEST_SELLING, ...RECOMMENDED];
+      setProductList(fallback);
+      setHotDealsList(BEST_SELLING);
     } finally {
       if (showLoadingIndicator) setLoadingProducts(false);
     }
@@ -141,6 +166,28 @@ export default function Home() {
     ]).start();
   };
 
+  // Hot deals: strictly 5 products in horizontal scroll (most-ordered first, filled with default products if fewer than 5)
+  const hotDealsDisplay = useMemo(() => {
+    const list = [...hotDealsList];
+    if (list.length < 5) {
+      for (const p of productList) {
+        if (!list.some((item) => item.id === p.id)) {
+          list.push(p);
+          if (list.length >= 5) break;
+        }
+      }
+    }
+    if (list.length < 5) {
+      for (const b of BEST_SELLING) {
+        if (!list.some((item) => item.id === b.id)) {
+          list.push(b);
+          if (list.length >= 5) break;
+        }
+      }
+    }
+    return list.slice(0, 5);
+  }, [hotDealsList, productList]);
+
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
       <Header onNotificationsPress={() => router.push({ pathname: "/notificationPop", params: { returnTo: pathname } })} />
@@ -187,7 +234,7 @@ export default function Home() {
               className="flex-row items-center justify-between bg-green-800 active:bg-green-900 rounded-2xl py-3 px-5 shadow-sm shadow-green-700/20"
             >
               <View className="flex-row items-center">
-                <Animated.View
+                <Animated.View 
                   className="mr-3 h-8 w-8 items-center justify-center rounded-xl bg-white/10"
                   style={{ transform: [{ scale: sparkleScale }] }}
                 >
@@ -197,7 +244,7 @@ export default function Home() {
                   Shop Now
                 </Text>
               </View>
-              <Animated.View
+              <Animated.View 
                 className="h-8 w-8 items-center justify-center rounded-full bg-white/20"
                 style={{ transform: [{ translateX: arrowTranslateX }] }}
               >
@@ -249,14 +296,19 @@ export default function Home() {
 
         </View>
 
-        {/* Best Selling */}
+        {/* Hot Deals */}
         <View className="mb-10">
           <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-xl font-bold text-slate-900">Best Selling</Text>
+            <Text className="text-xl font-bold text-slate-900">Hot Deals 🔥</Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="See all best selling"
-              onPress={() => router.push("/bestSelling")}
+              accessibilityLabel="See all hot deals"
+              onPress={() =>
+                router.push({
+                  pathname: "/bestSelling",
+                  params: { title: "Hot Deals" },
+                })
+              }
             >
               <Text className="text-sm font-semibold text-green-700">See all</Text>
             </Pressable>
@@ -271,7 +323,7 @@ export default function Home() {
               className="w-full"
               scrollEventThrottle={16}
             >
-              {productList.slice(10, 15).map((product) => (
+              {hotDealsDisplay.map((product) => (
                 <ProductCard
                   key={product.id}
                   id={product.id}
@@ -293,10 +345,10 @@ export default function Home() {
           )}
         </View>
 
-        {/* Recommended for you */}
+        {/* New Products */}
         <View className="mb-10">
           <View className="mb-4">
-            <Text className="text-xl font-bold text-slate-900">Recommended for you</Text>
+            <Text className="text-xl font-bold text-slate-900">New Products</Text>
           </View>
 
           {loadingProducts ? (
@@ -306,7 +358,7 @@ export default function Home() {
               className="flex-row flex-wrap"
               style={{ columnGap: recommendedColumnGap, rowGap: 16 }}
             >
-              {productList.slice(6, 14).map((product) => (
+              {productList.slice(0, 24).map((product) => (
                 <View key={product.id} style={{ width: recommendedItemWidth }}>
                   <ProductCard
                     id={product.id}

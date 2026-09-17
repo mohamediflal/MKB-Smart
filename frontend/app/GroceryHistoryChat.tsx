@@ -78,7 +78,11 @@ function buildCookingPrompt(recipeTitle: string, exactIngredients?: RecipeIngred
   const ingredientsListText = hasExact
     ? exactIngredients
         .map((ing) => {
-          const qty = ing.displayQuantity || `${ing.quantity} ${ing.unit || ""}`.trim();
+          let qty = ing.displayQuantity || `${ing.quantity} ${ing.unit || ""}`.trim();
+          const isEgg = (ing.name || "").toLowerCase().includes("egg") && !(ing.name || "").toLowerCase().includes("eggplant");
+          if (isEgg && (qty.toLowerCase().includes("kg") || qty.toLowerCase().includes(" g") || qty.toLowerCase().endsWith("g"))) {
+            qty = `${ing.quantity || 1} pcs`;
+          }
           return `* ${ing.name} – ${qty}`;
         })
         .join("\n")
@@ -327,7 +331,11 @@ function RecipeCardBubble({
   const finalIngredients =
     exactIngredients && exactIngredients.length > 0
       ? exactIngredients.map((ing) => {
-          const qty = ing.displayQuantity || `${ing.quantity} ${ing.unit || ""}`.trim();
+          let qty = ing.displayQuantity || `${ing.quantity} ${ing.unit || ""}`.trim();
+          const isEgg = (ing.name || "").toLowerCase().includes("egg") && !(ing.name || "").toLowerCase().includes("eggplant");
+          if (isEgg && (qty.toLowerCase().includes("kg") || qty.toLowerCase().includes(" g") || qty.toLowerCase().endsWith("g"))) {
+            qty = `${ing.quantity || 1} pcs`;
+          }
           return `${ing.name} – ${qty}`;
         })
       : parsed.ingredients;

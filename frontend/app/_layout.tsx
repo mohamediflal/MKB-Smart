@@ -18,6 +18,8 @@ export default function RootLayout() {
             <AddressProvider>
               <CategoryProvider>
                 <Stack initialRouteName="(tabs)" screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="help" options={{ headerShown: false }} />
                   <Stack.Screen
                     name="notificationPop"
                     options={{ presentation: "transparentModal", animation: "fade" }}

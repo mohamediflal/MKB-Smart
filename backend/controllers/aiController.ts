@@ -87,8 +87,11 @@ export const generateRecipeController = async (req: Request, res: Response) => {
 
     const validatedIngredients = filterIrrelevantIngredients(recipeName, normalizedRaw);
 
+    // Step 2.5: Validate and sanitize ingredient quantities to realistic culinary proportions
+    const sanitizedIngredients = validateAndSanitizeIngredientQuantities(recipeName, numServings, validatedIngredients);
+
     // Step 3: Match each validated AI ingredient against the actual store products.
-    const mappedIngredients = validatedIngredients
+    const mappedIngredients = sanitizedIngredients
       .map((ing: any) => {
         // Authoritative path: fuzzy match the ingredient name against the store catalog.
         // The fuzzy matcher is unit-aware, so e.g. "Chicken" (kg) prefers "Fresh Chicken (1 kg)"
@@ -108,6 +111,7 @@ export const generateRecipeController = async (req: Request, res: Response) => {
           return {
             id: matched.id,
             name: matched.name,
+            recipeIngredient: ing.name,
             category: matched.category?.name || ing.category || "Grocery",
             price: matched.price,
             image: matched.image,
@@ -123,6 +127,7 @@ export const generateRecipeController = async (req: Request, res: Response) => {
         return {
           id: null,
           name: ing.name,
+          recipeIngredient: ing.name,
           category: ing.category || "Grocery",
           price: 0,
           image: null,
@@ -135,7 +140,7 @@ export const generateRecipeController = async (req: Request, res: Response) => {
       });
 
     // Intelligently combine duplicate ingredients: if multiple ingredients resolve
-    // to the same store product or same name, sum their quantities and update display quantity.
+    // to the same store product or same name, sum their quantities and preserve recipe display quantity.
     const combinedMap = new Map<string, any>();
     for (const item of mappedIngredients) {
       const key = item.isDbMatched && item.id
@@ -147,12 +152,14 @@ export const generateRecipeController = async (req: Request, res: Response) => {
         const existing = combinedMap.get(key);
         const mergedQty = clampQuantity(existing.quantity + item.quantity);
         existing.quantity = mergedQty;
-        // Re-format displayQuantity for the combined amount
-        const prodBase = baseUnit(existing.unit);
-        if (prodBase === "kg" || prodBase === "g" || prodBase === "l" || prodBase === "ml") {
-          existing.displayQuantity = formatDisplayQuantity({ quantity: mergedQty, unit: existing.unit });
-        } else {
-          existing.displayQuantity = `${mergedQty} ${existing.unit || "pcs"}`;
+
+        // Combine recipe display amounts if both have parsed amounts with the same unit
+        if (existing.displayQuantity && item.displayQuantity) {
+          const parsed1 = parseAmountFromDisplay(existing.displayQuantity);
+          const parsed2 = parseAmountFromDisplay(item.displayQuantity);
+          if (parsed1 && parsed2 && parsed1.unit === parsed2.unit) {
+            existing.displayQuantity = `${Math.round((parsed1.value + parsed2.value) * 100) / 100} ${parsed1.unit}`;
+          }
         }
       } else {
         combinedMap.set(key, { ...item });
@@ -274,7 +281,7 @@ function clampQuantity(qty: number): number {
 
 function formatDisplayQuantity(ing: any): string {
   const q = clampQuantity(ing.quantity);
-  const u = (ing.unit && ing.unit.trim()) || "item";
+  const u = baseUnit(ing.unit) || (ing.unit && ing.unit.trim()) || "item";
   const lowerU = u.toLowerCase();
   if (lowerU === "g" && q >= 1000) return `${Math.round(q / 1000 * 100) / 100} kg`;
   if (lowerU === "kg" && q < 1) return `${Math.round(q * 1000)} g`;
@@ -299,11 +306,45 @@ function isMeasuredUnit(unit: string): boolean {
   return unit === "kg" || unit === "g" || unit === "ml" || unit === "l" || unit === "litre" || unit === "liter";
 }
 
+/**
+ * Normalizes purchasable quantity according to store purchasing policy:
+ * - Weight-based products: minimum 100 g (0.1 kg).
+ * - Liquid-based products: minimum 100 ml (0.1 L).
+ * - Piece/count-based products: minimum 1.
+ */
+export function normalizePurchasableQuantity(
+  rawQty: number,
+  productUnit?: string | null
+): number {
+  const prodBase = baseUnit(productUnit);
+  const qty = isNaN(rawQty) || rawQty <= 0 ? 0.1 : rawQty;
+
+  if (prodBase === "kg") {
+    // Stored in kg: minimum 0.1 kg (100 g)
+    return Math.max(0.1, Math.round(qty * 100) / 100);
+  }
+  if (prodBase === "g") {
+    // Stored in g: minimum 100 g
+    return Math.max(100, Math.round(qty));
+  }
+  if (prodBase === "l" || prodBase === "liter" || prodBase === "litre") {
+    // Stored in L: minimum 0.1 L (100 ml)
+    return Math.max(0.1, Math.round(qty * 100) / 100);
+  }
+  if (prodBase === "ml") {
+    // Stored in ml: minimum 100 ml
+    return Math.max(100, Math.round(qty));
+  }
+
+  // Countable/piece products: minimum 1
+  return Math.max(1, Math.round(qty));
+}
+
 // Resolves a single AI ingredient's numeric quantity, display quantity and unit.
 // The numeric quantity is expressed in the store product's sale unit so the cart
 // quantity matches the display. Policy:
-//  - Product sold by weight/volume + requirement in kg/g/L/ml -> exact kg/L amount.
-//  - Product sold by weight/volume + requirement in pcs/tsp/cups -> minimum one store unit.
+//  - Product sold by weight/volume + requirement in kg/g/L/ml -> exact kg/L amount (normalized to store minimums).
+//  - Product sold by weight/volume + requirement in pcs/tsp/cups -> scaled kg/L amount (normalized to store minimums).
 //  - Product sold by count (pcs/pack/bunch) -> the required count.
 function resolveQuantityAndDisplay(
   ing: any,
@@ -330,8 +371,31 @@ function resolveQuantityAndDisplay(
       if (prodBase === "g") quantity = quantity * 1000;
       else if (prodBase === "ml") quantity = quantity * 1000;
     } else if (prodMeasured) {
-      // e.g. "2.5 tsp" of a spice that the store sells per kg -> minimum one store unit.
-      quantity = 1;
+      if (parsed.unit === "tsp") {
+        quantity = (parsed.value * 5) / 1000;
+      } else if (parsed.unit === "tbsp") {
+        quantity = (parsed.value * 15) / 1000;
+      } else if (parsed.unit === "cloves" || parsed.unit === "clove") {
+        quantity = (parsed.value * 5) / 1000;
+      } else {
+        const approxMatch = /approx\.?\s*(\d+(?:[.,]\d+)?)\s*g/i.exec(displayQuantity);
+        if (approxMatch) {
+          const approxG = parseFloat(approxMatch[1].replace(",", "."));
+          quantity = approxG / 1000;
+        } else {
+          // If piece/count item sold by weight in store:
+          const ingNameLower = String(ing.name || "").toLowerCase();
+          if (ingNameLower.includes("chili") || ingNameLower.includes("chilli")) {
+            quantity = (parsed.value * 5) / 1000; // ~40g for 8 pcs -> normalizes to 0.1 kg (100 g)
+          } else if (ingNameLower.includes("garlic")) {
+            quantity = (parsed.value * 5) / 1000;
+          } else {
+            quantity = (parsed.value * 100) / 1000;
+          }
+        }
+      }
+      if (prodBase === "g") quantity = quantity * 1000;
+      else if (prodBase === "ml") quantity = quantity * 1000;
     } else {
       quantity = parsed.value;
     }
@@ -343,11 +407,263 @@ function resolveQuantityAndDisplay(
     if (prodBase === "ml") quantity = quantity * 1000;
   }
 
+  // Normalize according to store minimum purchasing rules (100g weight / 100ml liquid / 1 piece)
+  const normalizedQuantity = normalizePurchasableQuantity(quantity, productUnit);
+
+  const ingNameLower = String(ing.name || "").toLowerCase().trim();
+  const isCarbOrNoodle =
+    ingNameLower.includes("noodle") ||
+    ingNameLower.includes("pasta") ||
+    ingNameLower.includes("spaghetti") ||
+    ingNameLower.includes("macaroni") ||
+    ingNameLower.includes("roll");
+
+  const isEgg =
+    !isCarbOrNoodle &&
+    !ingNameLower.includes("eggplant") &&
+    (ingNameLower === "egg" ||
+      ingNameLower === "eggs" ||
+      ingNameLower === "red egg" ||
+      ingNameLower === "red eggs" ||
+      ingNameLower === "white egg" ||
+      ingNameLower === "white eggs" ||
+      ingNameLower === "chicken egg" ||
+      ingNameLower === "chicken eggs" ||
+      ingNameLower === "brown egg" ||
+      ingNameLower === "brown eggs" ||
+      ingNameLower === "fresh egg" ||
+      ingNameLower === "fresh eggs" ||
+      ingNameLower === "raw egg" ||
+      ingNameLower === "raw eggs" ||
+      ingNameLower === "boiled egg" ||
+      ingNameLower === "boiled eggs");
+
+  if (isEgg) {
+    const finalEggQty = Math.max(1, Math.round(normalizedQuantity));
+    return {
+      quantity: finalEggQty,
+      displayQuantity: `${finalEggQty} pcs`,
+      unit: "pcs",
+    };
+  }
+
   return {
-    quantity: clampQuantity(quantity),
+    quantity: clampQuantity(normalizedQuantity),
     displayQuantity,
     unit: ingUnit || "item",
   };
+}
+
+/**
+ * Validates and sanitizes AI-generated ingredient quantities to guarantee realistic,
+ * culinary-accurate scaling and prevent absurd values (e.g. 2 kg of chilli powder for 10 people).
+ */
+export function validateAndSanitizeIngredientQuantities(
+  recipeName: string,
+  numServings: number,
+  ingredients: any[]
+): any[] {
+  const servings = Math.max(1, isNaN(numServings) ? 1 : numServings);
+  const normRecipe = (recipeName || "").toLowerCase().trim();
+
+  return ingredients.map((ing) => {
+    if (!ing || !ing.name) return ing;
+    let name = String(ing.name).trim();
+    let nameLower = name.toLowerCase();
+    let qty = typeof ing.quantity === "number" && isFinite(ing.quantity) ? ing.quantity : parseFloat(String(ing.quantity)) || 1;
+    let unit = (typeof ing.unit === "string" ? ing.unit.trim() : "g").toLowerCase();
+    let display = (typeof ing.displayQuantity === "string" ? ing.displayQuantity.trim() : "");
+
+    // 0. Eggs (CRITICAL: MUST ALWAYS be in 'pcs', never 'kg', 'g', or other weight units)
+    const isNoodleOrCarb =
+      nameLower.includes("noodle") ||
+      nameLower.includes("pasta") ||
+      nameLower.includes("spaghetti") ||
+      nameLower.includes("macaroni") ||
+      nameLower.includes("roll");
+
+    const isEgg =
+      !isNoodleOrCarb &&
+      !nameLower.includes("eggplant") &&
+      (nameLower === "egg" ||
+        nameLower === "eggs" ||
+        nameLower === "red egg" ||
+        nameLower === "red eggs" ||
+        nameLower === "white egg" ||
+        nameLower === "white eggs" ||
+        nameLower === "chicken egg" ||
+        nameLower === "chicken eggs" ||
+        nameLower === "brown egg" ||
+        nameLower === "brown eggs" ||
+        nameLower === "fresh egg" ||
+        nameLower === "fresh eggs" ||
+        nameLower === "farm egg" ||
+        nameLower === "farm eggs" ||
+        nameLower === "raw egg" ||
+        nameLower === "raw eggs" ||
+        nameLower === "boiled egg" ||
+        nameLower === "boiled eggs");
+
+    if (isEgg) {
+      if (nameLower === "eggs") {
+        name = "Egg";
+      }
+      let eggCount: number;
+      if (unit === "kg" || unit === "kgs" || unit === "kilo" || unit === "g" || unit === "grams") {
+        // Correct impossible weight unit for eggs to realistic count based on servings (e.g. 10 people = 10 pcs)
+        eggCount = Math.max(1, Math.round(servings * 1.0));
+        console.log(`[Quantity Sanitizer] Corrected impossible egg weight (${qty} ${unit}) for "${name}" (${servings} servings) to ${eggCount} pcs`);
+      } else if (unit === "pcs" || unit === "pc" || unit === "piece" || unit === "pieces" || unit === "item") {
+        if (servings >= 4 && qty < servings * 0.5) {
+          eggCount = Math.max(1, Math.round(servings * 1.0));
+          console.log(`[Quantity Sanitizer] Corrected unrealistic egg count (${qty} pcs) for "${name}" (${servings} servings) to ${eggCount} pcs`);
+        } else {
+          eggCount = Math.max(1, Math.round(qty));
+        }
+      } else {
+        eggCount = Math.max(1, Math.round(servings * 1.0));
+      }
+
+      qty = eggCount;
+      unit = "pcs";
+      display = `${eggCount} pcs`;
+
+      return {
+        ...ing,
+        name,
+        quantity: qty,
+        unit,
+        displayQuantity: display,
+      };
+    }
+
+    // 1. Spices & Seasonings (Red Chili Powder, Turmeric, Masalas, Salt, etc.)
+    const isChiliPowder =
+      nameLower.includes("chili powder") ||
+      nameLower.includes("chilli powder") ||
+      nameLower.includes("chile powder") ||
+      nameLower.includes("crushed chili") ||
+      nameLower.includes("chilli flakes") ||
+      nameLower.includes("chili flakes") ||
+      ((nameLower.includes("red chili") || nameLower.includes("red chilli")) && !nameLower.includes("fresh") && !nameLower.includes("sauce"));
+
+    const isGeneralSpice =
+      isChiliPowder ||
+      nameLower.includes("turmeric") ||
+      nameLower.includes("curry powder") ||
+      nameLower.includes("garam masala") ||
+      nameLower.includes("biryani masala") ||
+      nameLower.includes("coriander powder") ||
+      nameLower.includes("cumin powder") ||
+      nameLower.includes("cumin seed") ||
+      nameLower.includes("black pepper") ||
+      nameLower.includes("white pepper") ||
+      nameLower.includes("paprika") ||
+      nameLower.includes("fenugreek") ||
+      nameLower.includes("cardamom") ||
+      nameLower.includes("cinnamon") ||
+      nameLower.includes("clove") ||
+      nameLower.includes("nutmeg") ||
+      nameLower.includes("saffron") ||
+      nameLower.includes("salt");
+
+    if (isChiliPowder) {
+      // For 10 people biryani/curry: 40-70g (standard catering target: ~55g total, or ~5.5g per serving)
+      const targetGrams = Math.round(servings * 5.5);
+
+      if (unit === "kg" || unit === "kgs" || unit === "kilo" || unit === "l" || unit === "liter" || unit === "litre") {
+        console.log(`[Quantity Sanitizer] Corrected impossible spice unit (${qty} ${unit}) for "${name}" (${servings} servings) to ${targetGrams} g`);
+        qty = targetGrams;
+        unit = "g";
+        display = `${targetGrams} g`;
+      } else if (unit === "g") {
+        if (qty > servings * 14 || qty > 160) {
+          console.log(`[Quantity Sanitizer] Corrected unrealistic spice quantity (${qty} g) for "${name}" (${servings} servings) to ${targetGrams} g`);
+          qty = targetGrams;
+          display = `${targetGrams} g`;
+        }
+      } else if (unit === "tbsp" || unit === "tsp") {
+        const maxTbsp = Math.max(3, servings * 0.8);
+        if (unit === "tbsp" && qty > maxTbsp) {
+          qty = Math.round(servings * 0.4 * 10) / 10;
+          display = `${qty} tbsp`;
+        }
+      }
+    } else if (isGeneralSpice) {
+      // Ground spices & salt: unit MUST NEVER be kg
+      if (unit === "kg" || unit === "kgs" || unit === "kilo" || unit === "l" || unit === "liter" || unit === "litre") {
+        const targetGrams = nameLower.includes("salt") ? Math.round(servings * 3.5) : Math.round(servings * 2);
+        console.log(`[Quantity Sanitizer] Corrected impossible unit for spice/salt "${name}" to ${targetGrams} g`);
+        qty = targetGrams;
+        unit = "g";
+        display = `${targetGrams} g`;
+      } else if (unit === "g") {
+        const maxGrams = nameLower.includes("salt") ? servings * 10 : servings * 8;
+        if (qty > maxGrams && qty > 80) {
+          const targetGrams = nameLower.includes("salt") ? Math.round(servings * 3.5) : Math.round(servings * 2);
+          qty = targetGrams;
+          display = `${targetGrams} g`;
+        }
+      }
+    }
+
+    // 2. Fresh Green Chilies / Fresh Red Chilies (Produce)
+    const isFreshChili = (nameLower.includes("green chili") || nameLower.includes("green chilli") || nameLower.includes("fresh chili")) && !isChiliPowder;
+    if (isFreshChili) {
+      if (unit === "kg" || unit === "kgs" || (unit === "g" && qty > servings * 25 && qty > 80)) {
+        const pcs = Math.max(2, Math.round(servings * 0.7)); // 10 people = 7 pcs
+        const grams = pcs * 6; // approx 40-50g
+        console.log(`[Quantity Sanitizer] Corrected fresh chili quantity for "${name}" to ${pcs} pcs (approx. ${grams} g)`);
+        qty = pcs;
+        unit = "pcs";
+        display = `${pcs} pcs (approx. ${grams} g)`;
+      }
+    }
+
+    // 3. Garlic & Ginger
+    if (nameLower.includes("garlic") && !nameLower.includes("powder") && !nameLower.includes("bread")) {
+      if (unit === "kg" || (unit === "g" && qty > servings * 20 && qty > 80)) {
+        const cloves = Math.max(3, Math.round(servings * 1.0)); // 10 people = 10 cloves (~50g)
+        qty = cloves;
+        unit = "cloves";
+        display = `${cloves} cloves (approx. ${cloves * 5} g)`;
+      }
+    }
+    if (nameLower.includes("ginger") && !nameLower.includes("powder") && !nameLower.includes("beer")) {
+      if (unit === "kg" || (unit === "g" && qty > servings * 15 && qty > 80)) {
+        const grams = Math.max(10, Math.round(servings * 4)); // 10 people = 40g
+        qty = grams;
+        unit = "g";
+        display = `${grams} g`;
+      }
+    }
+
+    // 4. Rice / Grains (when cooked in recipe e.g. Biryani)
+    if (nameLower.includes("rice") && (normRecipe.includes("biryani") || normRecipe.includes("briyani") || normRecipe.includes("fried rice") || normRecipe.includes("pulao"))) {
+      if (unit === "kg" && qty > servings * 0.25) {
+        const targetKg = Math.round(servings * 0.11 * 10) / 10; // ~1.1 kg for 10 people
+        qty = targetKg;
+        display = `${targetKg} kg`;
+      }
+    }
+
+    // 5. Meat / Chicken / Protein
+    if ((nameLower.includes("chicken") || nameLower.includes("beef") || nameLower.includes("mutton") || nameLower.includes("fish")) && !nameLower.includes("sauce") && !nameLower.includes("cube")) {
+      if (unit === "kg" && qty > servings * 0.35) {
+        const targetKg = Math.round(servings * 0.17 * 10) / 10; // ~1.7 kg for 10 people
+        qty = targetKg;
+        display = `${targetKg} kg`;
+      }
+    }
+
+    return {
+      ...ing,
+      name,
+      quantity: qty,
+      unit,
+      displayQuantity: display || `${qty} ${unit}`,
+    };
+  });
 }
 
 const STAPLE_CARB_RULES: Array<{
@@ -426,20 +742,20 @@ async function ensureRecipeHistoryTable() {
           CONSTRAINT "RecipeHistory_pkey" PRIMARY KEY ("id")
         );
       `);
-    } catch {}
+    } catch { }
   }
 
   try {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "RecipeHistory" ADD COLUMN IF NOT EXISTS "ingredients" TEXT;
     `);
-  } catch {}
+  } catch { }
 
   try {
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "RecipeHistory_userId_idx" ON "RecipeHistory"("userId");
     `);
-  } catch {}
+  } catch { }
 
   isRecipeHistoryTableChecked = true;
 }
@@ -681,7 +997,7 @@ export const deleteRecipeHistoryController = async (req: Request & { userId?: st
             userId: req.userId,
           },
         });
-      } catch {}
+      } catch { }
     }
 
     return res.json({

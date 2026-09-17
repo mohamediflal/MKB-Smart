@@ -129,22 +129,24 @@ function parsePrice(value: string) {
 const formatLkr = (value: number) => new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value);
 function roundQuantity(value: number) { return Math.round(value * 100) / 100; }
 function formatDecimal(value: number) { return roundQuantity(value).toString().replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1"); }
+
 function getMeasurementUnit(subtitle: string): MeasurementUnit | null {
-  const normalized = subtitle.replace(/\s+/g, "").toLowerCase();
-  if (normalized.startsWith("1kg")) return "kg";
-  if (normalized.startsWith("1l")) return "l";
+  const normalized = (subtitle || "").replace(/\s+/g, "").toLowerCase();
+  if (normalized.includes("kg") || /(?:^|\d+)g\b/.test(normalized) || normalized.endsWith("g")) return "kg";
+  if (normalized.includes("1l") || /(?:^|\d+)l\b/.test(normalized) || normalized.includes("ml")) return "l";
   return null;
 }
+
 function formatMeasuredQuantity(quantity: number, unit: MeasurementUnit) {
   const rounded = roundQuantity(quantity);
   if (unit === "kg") return rounded >= 1 ? `${formatDecimal(rounded)} kg` : `${Math.round(rounded * 1000)} g`;
   return rounded >= 1 ? `${formatDecimal(rounded)} L` : `${Math.round(rounded * 1000)} ml`;
 }
+
 function formatSubtitleWithQuantity(subtitle: string, quantity: number) {
   const measuredUnit = getMeasurementUnit(subtitle);
   if (measuredUnit) {
-    const match = subtitle.match(/^\s*1\s*([A-Za-z]+)(.*)$/i);
-    if (match) return `${formatMeasuredQuantity(quantity, measuredUnit)}${match[2]}`;
+    return formatMeasuredQuantity(quantity, measuredUnit);
   }
   const match = subtitle.match(/^(\d+(?:\.\d+)?)(\s*)([A-Za-z]+)?(.*)$/);
   if (!match) return subtitle;
@@ -156,16 +158,40 @@ function formatSubtitleWithQuantity(subtitle: string, quantity: number) {
   const unit = isCountableWord && quantity !== 1 ? `${singularUnit}s` : singularUnit;
   return `${formatDecimal(quantity)}${spacing}${unit}${rest}`;
 }
+
 function formatQuantityLabel(subtitle: string, quantity: number) {
   const measuredUnit = getMeasurementUnit(subtitle);
   if (measuredUnit) return formatMeasuredQuantity(quantity, measuredUnit);
   return formatDecimal(quantity);
 }
 
+/**
+ * Normalizes purchasable quantity according to store purchasing policy:
+ * - Weight-based products: minimum 100 g (0.1 kg).
+ * - Liquid-based products: minimum 100 ml (0.1 L).
+ * - Piece/count-based products: minimum 1.
+ */
+export function normalizePurchasableQuantity(quantity: number, subtitle?: string | null): number {
+  const kind = getMeasurementUnit(subtitle || "");
+  const safeQty = isNaN(quantity) || quantity <= 0 ? 0.1 : quantity;
+
+  if (kind === "kg") {
+    // Minimum 100 g (0.1 kg)
+    return Math.max(0.1, roundQuantity(safeQty));
+  }
+  if (kind === "l") {
+    // Minimum 100 ml (0.1 L)
+    return Math.max(0.1, roundQuantity(safeQty));
+  }
+  // Countable/piece products: minimum 1
+  return Math.max(1, Math.round(safeQty));
+}
+
 type GeneratedItem = {
   id: string | null;
   tempKey: string;
   name: string;
+  recipeIngredient?: string;
   category: string;
   price: string;
   imageSource: any;
@@ -363,7 +389,7 @@ export default function AIRecipeGenerator() {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Fetch recipe history for the logged-in user
@@ -381,7 +407,7 @@ export default function AIRecipeGenerator() {
         .then((data) => {
           if (data && data.success && Array.isArray(data.history)) {
             setRecipeHistory(data.history);
-            AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(data.history)).catch(() => {});
+            AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(data.history)).catch(() => { });
           }
         })
         .catch((err) => {
@@ -478,13 +504,13 @@ export default function AIRecipeGenerator() {
       ingredientsOverride && ingredientsOverride.length > 0
         ? ingredientsOverride
         : groceryList.length > 0
-        ? groceryList.map((g) => ({
-            name: g.name,
+          ? groceryList.map((g) => ({
+            name: g.recipeIngredient || g.name,
             quantity: g.quantity,
             unit: g.subtitle,
             displayQuantity: g.displayQuantity || `${g.quantity} ${g.subtitle}`.trim(),
           }))
-        : undefined;
+          : undefined;
 
     setShowResults(false);
     router.push({
@@ -557,7 +583,7 @@ export default function AIRecipeGenerator() {
                 ? { ...data.item, ingredients: ingredientsList || data.item.ingredients || [] }
                 : item
             );
-            AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)).catch(() => {});
+            AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)).catch(() => { });
             return updated;
           });
         }
@@ -570,7 +596,7 @@ export default function AIRecipeGenerator() {
   const handleDeleteHistory = async (id: string) => {
     setRecipeHistory((prev) => {
       const updated = prev.filter((item) => item.id !== id);
-      AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)).catch(() => {});
+      AsyncStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)).catch(() => { });
       return updated;
     });
 
@@ -645,22 +671,68 @@ export default function AIRecipeGenerator() {
             const matchedStoreProduct = isAvailable ? storeProducts.find((p) => p.id === ing.id) : null;
             const imgUrl = matchedStoreProduct?.image || ing.image;
 
+            const subtitle = `${matchedStoreProduct?.unit || ing.unit || "piece"}`;
+            let rawQty = typeof ing.quantity === "number" && isFinite(ing.quantity) ? ing.quantity : parseFloat(String(ing.quantity)) || 1;
+            let displayQty = ing.displayQuantity || `${ing.quantity || 1} ${ing.unit || ''}`.trim();
+
+            const isCarbOrNoodle =
+              (ing.name || "").toLowerCase().includes("noodle") ||
+              (ing.recipeIngredient || "").toLowerCase().includes("noodle") ||
+              (ing.name || "").toLowerCase().includes("pasta") ||
+              (ing.recipeIngredient || "").toLowerCase().includes("pasta");
+
+            const isEgg =
+              !isCarbOrNoodle &&
+              ((ing.name || "").toLowerCase().includes("egg") || (ing.recipeIngredient || "").toLowerCase().includes("egg")) &&
+              !(ing.name || "").toLowerCase().includes("eggplant") &&
+              !(ing.recipeIngredient || "").toLowerCase().includes("eggplant");
+
+            if (isEgg) {
+              const matchDisplay = /(\d+(?:[.,]\d+)?)\s*pcs?/i.exec(displayQty);
+              if (matchDisplay) {
+                const parsedPcs = Math.max(1, Math.round(parseFloat(matchDisplay[1])));
+                rawQty = parsedPcs;
+                displayQty = `${parsedPcs} pcs`;
+              } else {
+                rawQty = Math.max(1, Math.round(rawQty));
+                displayQty = `${rawQty} pcs`;
+              }
+            } else {
+              // Ensure displayQty and rawQty are synchronized if displayQty specifies an amount
+              const matchDisplay = /(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)/.exec(displayQty);
+              if (matchDisplay) {
+                const parsedVal = parseFloat(matchDisplay[1].replace(",", "."));
+                const parsedUnit = matchDisplay[2].toLowerCase();
+                const kind = getMeasurementUnit(subtitle);
+                if (parsedVal > 0) {
+                  if (kind === "kg" && parsedUnit === "kg") rawQty = parsedVal;
+                  else if (kind === "kg" && parsedUnit === "g") rawQty = parsedVal / 1000;
+                  else if (kind === "l" && (parsedUnit === "l" || parsedUnit === "liter" || parsedUnit === "litre")) rawQty = parsedVal;
+                  else if (kind === "l" && parsedUnit === "ml") rawQty = parsedVal / 1000;
+                  else if (!kind && (parsedUnit === "pcs" || parsedUnit === "pc" || parsedUnit === "piece" || parsedUnit === "item")) rawQty = Math.round(parsedVal);
+                }
+              }
+            }
+
+            const normalizedQty = normalizePurchasableQuantity(rawQty, subtitle);
+
             return {
               id: isAvailable ? (matchedStoreProduct?.id || ing.id) : null,
               tempKey: `ing-${index}-${Date.now()}`,
               name: matchedStoreProduct?.name || ing.name,
+              recipeIngredient: isEgg ? "Egg" : (ing.recipeIngredient || ing.name),
               category: matchedStoreProduct?.category?.name || ing.category || "Grocery",
               price: isAvailable ? `Rs. ${matchedStoreProduct?.price ?? ing.price ?? "0.00"}` : "N/A",
               imageSource: imgUrl ? resolveImageSource(imgUrl) : (isAvailable ? BEST_SELLING[index % BEST_SELLING.length].imageSource : null),
-              quantity: Math.max(0.05, roundQuantity(ing.quantity || 1)),
-              displayQuantity: ing.displayQuantity || `${ing.quantity || 1} ${ing.unit || ''}`.trim(),
-              subtitle: `${matchedStoreProduct?.unit || ing.unit || "piece"}`,
+              quantity: normalizedQty,
+              displayQuantity: displayQty,
+              subtitle,
               isAvailable
             };
           });
 
           const ingredientsForHistory: RecipeIngredient[] = generated.map((g) => ({
-            name: g.name,
+            name: g.recipeIngredient || g.name,
             quantity: g.quantity,
             unit: g.subtitle,
             displayQuantity: g.displayQuantity || `${g.quantity} ${g.subtitle}`.trim(),
@@ -694,7 +766,17 @@ export default function AIRecipeGenerator() {
   const adjustQty = (tempKey: string, delta: number) =>
     setGroceryList((current) =>
       current
-        .map((item) => (item.tempKey === tempKey ? { ...item, quantity: Math.min(Math.max(roundQuantity(item.quantity + delta), 0), 20) } : item))
+        .map((item) => {
+          if (item.tempKey !== tempKey) return item;
+          const kind = getMeasurementUnit(item.subtitle);
+          const minQty = kind === "kg" ? 0.1 : kind === "l" ? 0.1 : 1;
+          const nextQty = roundQuantity(item.quantity + delta);
+          const clamped = Math.min(Math.max(nextQty, minQty), 20);
+          return {
+            ...item,
+            quantity: clamped,
+          };
+        })
         .filter((i) => i.quantity > 0)
     );
 
@@ -703,7 +785,7 @@ export default function AIRecipeGenerator() {
     if (!item) return;
     const kind = getMeasurementUnit(item.subtitle);
     setEditingItemKey(tempKey);
-    const qty = roundQuantity(item.quantity);
+    const qty = normalizePurchasableQuantity(item.quantity, item.subtitle);
     if (kind === "kg") {
       setKgInput(String(Math.floor(qty)));
       setGInput(String(Math.round((qty - Math.floor(qty)) * 1000)));
@@ -721,13 +803,19 @@ export default function AIRecipeGenerator() {
     if (!editingItem) return;
     const kind = getMeasurementUnit(editingItem.subtitle);
     let targetQty = 0;
-    if (kind === "kg") targetQty = roundQuantity((Number(kgInput) || 0) + (Number(gInput) || 0) / 1000);
-    else if (kind === "l") targetQty = roundQuantity((Number(lInput) || 0) + (Number(mlInput) || 0) / 1000);
-    else targetQty = Math.round(Number(countInput) || 0);
+    if (kind === "kg") {
+      targetQty = roundQuantity((Number(kgInput) || 0) + (Number(gInput) || 0) / 1000);
+      targetQty = Math.max(0.1, targetQty); // Minimum 100 g
+    } else if (kind === "l") {
+      targetQty = roundQuantity((Number(lInput) || 0) + (Number(mlInput) || 0) / 1000);
+      targetQty = Math.max(0.1, targetQty); // Minimum 100 ml
+    } else {
+      targetQty = Math.max(1, Math.round(Number(countInput) || 0));
+    }
 
     setGroceryList((current) =>
       current
-        .map((item) => (item.tempKey === editingItem.tempKey ? { ...item, quantity: Math.min(Math.max(targetQty, 0), 20) } : item))
+        .map((item) => (item.tempKey === editingItem.tempKey ? { ...item, quantity: Math.min(targetQty, 20) } : item))
         .filter((i) => i.quantity > 0)
     );
     closeEditor();
@@ -1011,13 +1099,13 @@ export default function AIRecipeGenerator() {
                       backgroundColor: !isAllowed
                         ? "#f1f5f9"
                         : isSelected
-                        ? "#0d631b"
-                        : "#f8faf7",
+                          ? "#0d631b"
+                          : "#f8faf7",
                       borderColor: !isAllowed
                         ? "#e2e8f0"
                         : isSelected
-                        ? "#0d631b"
-                        : "#e2e8f0",
+                          ? "#0d631b"
+                          : "#e2e8f0",
                       opacity: !isAllowed ? 0.45 : 1,
                     }}
                   >
@@ -1027,8 +1115,8 @@ export default function AIRecipeGenerator() {
                         color: !isAllowed
                           ? "#94a3b8"
                           : isSelected
-                          ? "#ffffff"
-                          : "#374151",
+                            ? "#ffffff"
+                            : "#374151",
                         textDecorationLine: !isAllowed ? "line-through" : "none",
                       }}
                     >
@@ -1051,8 +1139,8 @@ export default function AIRecipeGenerator() {
                   {!availableQuantityTypes.allowL && !availableQuantityTypes.allowKg
                     ? `"${recipeName}" is measured by serving count (People).`
                     : !availableQuantityTypes.allowL
-                    ? `Litres (L) is disabled for "${recipeName}" (solid/dry dish).`
-                    : `Kilograms (Kg) is disabled for "${recipeName}" (liquid dish/soup).`}
+                      ? `Litres (L) is disabled for "${recipeName}" (solid/dry dish).`
+                      : `Kilograms (Kg) is disabled for "${recipeName}" (liquid dish/soup).`}
                 </Text>
               </View>
             )}
