@@ -6,7 +6,7 @@ const MIN_SCORE = 0.5;
 const STOP_TOKENS = new Set([
   "the", "and", "with", "for", "from", "fresh", "organic", "pure", "premium",
   "natural", "high", "low", "big", "large", "small", "medium", "young", "ripe",
-  "red", "white", "brown", "green", "yellow", "black", "golden", "local",
+  "golden", "local",
   "imported", "instant", "peeled", "frozen", "raw", "wild", "sea",
   "highland", "nuwara", "eliya", "bairaha", "jaffna", "sri", "lanka",
 ]);
@@ -183,6 +183,13 @@ function matchScore(ingTokens: string[], prodTokens: string[]): number {
     (t) => !ingSet.has(t) && PRODUCT_TYPE_TOKENS.has(t)
   );
   if (hasExtraProductType) score -= 0.35;
+
+  // Penalize when the ingredient has a product-type word (e.g. "noodle", "pasta")
+  // that the product does not share (e.g. "Egg Noodles" vs "Red eggs").
+  const hasMissingProductType = ingTokens.some(
+    (t) => !prodSet.has(t) && PRODUCT_TYPE_TOKENS.has(t)
+  );
+  if (hasMissingProductType) score -= 0.35;
 
   return score;
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Pressable, ScrollView, Text, useWindowDimensions, View, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import ProductCard from "@/components/ProductCard";
 import { BEST_SELLING } from "@/constants/bestSelling";
@@ -10,6 +10,8 @@ import { API_BASE_URL } from "@/context/AuthContext";
 
 export default function BestSellingScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ title?: string }>();
+  const pageTitle = params.title || "Hot Deals";
   const { width } = useWindowDimensions();
 
   const [productList, setProductList] = useState<any[]>([]);
@@ -26,23 +28,44 @@ export default function BestSellingScreen() {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_BASE_URL}/api/products/list`);
+        const mapItem = (p: any) => ({
+          id: p.id,
+          name: p.name,
+          subtitle: `${p.unit || "piece"}, Price`,
+          price: `Rs. ${p.price}`,
+          imageSource: p.image ? { uri: p.image } : BEST_SELLING[0].imageSource,
+          category: p.category?.name || "Uncategorized",
+          stock: p.stock,
+        });
+
+        // Fetch all available products (most-ordered first)
+        const res = await fetch(`${API_BASE_URL}/api/products/most-ordered`);
         if (res.ok) {
           const data = await res.json();
-          // Filter to only ACTIVE products
-          const activeOnly = data.filter((p: any) => p.status === 'ACTIVE');
-          const mapped = activeOnly.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            subtitle: `${p.unit || "piece"}, Price`,
-            price: `Rs. ${p.price}`,
-            imageSource: p.image ? { uri: p.image } : BEST_SELLING[0].imageSource,
-            category: p.category?.name || "Uncategorized",
-            stock: p.stock,
-          }));
-          setProductList(mapped);
+          const activeOnly = Array.isArray(data) ? data.filter((p: any) => p.status === 'ACTIVE') : [];
+          if (activeOnly.length > 0) {
+            setProductList(activeOnly.map(mapItem));
+          } else {
+            // Fallback to all products
+            const listRes = await fetch(`${API_BASE_URL}/api/products/list`);
+            if (listRes.ok) {
+              const listData = await listRes.json();
+              const listActive = listData.filter((p: any) => p.status === 'ACTIVE');
+              setProductList(listActive.length > 0 ? listActive.map(mapItem) : BEST_SELLING);
+            } else {
+              setProductList(BEST_SELLING);
+            }
+          }
         } else {
-          setProductList(BEST_SELLING);
+          // Fallback to /api/products/list
+          const listRes = await fetch(`${API_BASE_URL}/api/products/list`);
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            const listActive = listData.filter((p: any) => p.status === 'ACTIVE');
+            setProductList(listActive.length > 0 ? listActive.map(mapItem) : BEST_SELLING);
+          } else {
+            setProductList(BEST_SELLING);
+          }
         }
       } catch (err) {
         console.error("Error fetching best selling products:", err);
@@ -66,7 +89,7 @@ export default function BestSellingScreen() {
         >
           <Ionicons name="chevron-back" size={20} color="black" />
         </Pressable>
-        <Text className="ml-3 text-lg font-bold text-slate-900">Best Selling</Text>
+        <Text className="ml-3 text-lg font-bold text-slate-900">{pageTitle}</Text>
       </View>
 
       {loading ? (
@@ -81,7 +104,7 @@ export default function BestSellingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View className="flex-row flex-wrap" style={{ columnGap, rowGap: 16, marginTop: 16 }}>
-            {productList.slice(10, 20).map((product) => (
+            {productList.map((product) => (
               <View key={product.id} style={{ width: itemWidth }}>
                 <ProductCard
                   id={product.id}

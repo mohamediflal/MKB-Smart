@@ -58,24 +58,41 @@ CRITICAL RULES FOR ACCURACY & CULINARY PROPORTIONS:
    - For People:
      * 1 person: standard single-portion quantities.
      * 5 people: ~5x of single portion.
-     * 10 people: standard 10-person catering quantities (e.g. 1 kg noodles, 1 kg chicken, 4 eggs, 500g cabbage, 300g carrots, 50g garlic, 100ml soy sauce for Chicken Noodles for 10 people).
+     * 10 people: standard 10-person catering quantities (e.g. 1 kg basmati rice, 1.5 kg chicken, 500g onions, 300g tomatoes, 50g garlic, 40-70g red chilli powder for Biryani for 10 people).
      * 20 people: approx double of 10 people.
    - For Kg batch (finished weight): Calculate raw ingredients needed to yield ${quantityValue} kg of cooked finished dish.
    - For L batch (finished volume): Calculate liquids, aromatics, and solids needed to produce ${quantityValue} litres of finished liquid/soup/curry.
    - Never use a flat multiplier that produces absurd or uncookable quantities.
 
-4. REALISTIC GROCERY PURCHASING UNITS:
-   - Use standard units: "kg", "g", "L", "ml", "pcs", "cloves", "tbsp", "tsp", "bunches".
-   - Practical grocery units:
-     * Countable produce (onions, tomatoes, lemons, eggs, green chilies): use "pcs" or "g" (e.g. quantity: 3, unit: "pcs", displayQuantity: "3 pcs (approx. 300 g)" or quantity: 300, unit: "g").
-     * Garlic: use "cloves" or "g" (e.g. quantity: 6, unit: "cloves", displayQuantity: "6 cloves").
-     * Meats / Seafood: use "kg" or "g" (e.g. quantity: 1, unit: "kg", displayQuantity: "1 kg").
-     * Flour / Sugar / Rice / Noodles: use "kg" or "g".
-     * Oils / Sauces / Milk / Broth: use "ml" or "L".
-     * Spices / Salt: use "tsp", "tbsp", or "g".
+4. REALISTIC CULINARY PROPORTIONS & MEASUREMENT UNITS:
+   - Main Proteins (beef, chicken, fish, mutton, paneer): ~150g–200g raw per person (10 people = 1.5 kg – 2 kg). Use "kg" or "g".
+   - Main Grains/Rice (ONLY when cooked in the recipe, like Biryani, Fried Rice, Pulao): ~100g–120g dry per person (10 people = 1.0 kg – 1.2 kg). Use "kg" or "g".
+   - Fresh Produce & Vegetables (onion, tomato, carrot, cabbage): ~50g–80g each per person (10 people = 500g–800g onions, 300g–500g tomatoes). Use "g", "kg", or "pcs".
+   - Aromatics (ginger, garlic): ~4g–6g each per person (10 people = 40g–60g garlic / 8–12 cloves, 30g–50g ginger). Use "g", "cloves", or "pcs".
+   - Fresh Green Chilies: ~0.5–1 piece per person (10 people = 5–8 pcs / approx 30g–50g). Count in "pcs". NEVER use "kg"!
+   - EGGS (CRITICAL RULE):
+     * Eggs MUST ALWAYS be measured in pieces ("pcs"). NEVER measure eggs in kilograms ("kg"), grams ("g"), or any weight units!
+     * For dishes requiring eggs (e.g. Chicken Noodles, Veg Noodles, Egg Noodles, Fried Rice, Kottu, Omelette):
+       ~1 egg per person (e.g. 10 people Chicken Noodles = 10 pcs / 10 eggs, 5 people = 5 pcs, 1 person = 1–2 pcs).
+     * The unit MUST be "pcs" and displayQuantity MUST be formatted as "[N] pcs" (e.g. quantity: 10, unit: "pcs", displayQuantity: "10 pcs").
+   - Liquids / Fats (oil, ghee, coconut milk, yogurt): ~15–20ml oil/ghee per person (10 people = 150–200ml), ~25–40g yogurt per person (10 people = 250–400g). Use "ml" or "L".
+   - SPICES & SALT (CRITICAL RULE):
+     * Spices (Chili powder, turmeric, coriander, cumin, garam masala, biryani masala, black pepper, curry powder, paprika) and Salt MUST ALWAYS be measured in grams ("g"), teaspoons ("tsp"), or tablespoons ("tbsp").
+     * NEVER measure spices or salt in kilograms ("kg") or liters ("L")! A value such as 1 kg or 2 kg of chilli powder is STRICTLY FORBIDDEN.
+     * For Red Chilli Powder / Chili Powder:
+       - 1 person: ~4g–7g (~1 tsp)
+       - 5 people: ~20g–35g (~1.5–2 tbsp)
+       - 10 people: ~40g–70g (~2.5–4.5 tbsp)
+       - 20 people: ~80g–140g
+     * For Turmeric Powder: ~1g–2g per person (10 people = ~10g–15g / 2 tsp).
+     * For Biryani Masala / Garam Masala: ~2g–4g per person (10 people = ~20g–35g / 1.5–2.5 tbsp).
+     * For Salt: ~3g–5g per person (10 people = ~30g–45g / 2–3 tbsp).
+     * For Whole Spices (cinnamon, cardamom pods, cloves, bay leaves, star anise): count in "pcs" or small "g" (e.g. 10 people = 2 sticks cinnamon, 6-8 cardamom pods, 6-8 cloves, 2 bay leaves).
+   - "quantity" MUST be a clean numeric float corresponding to "unit" (e.g. quantity: 50, unit: "g"; quantity: 1.5, unit: "kg"; quantity: 8, unit: "cloves"; quantity: 10, unit: "pcs").
+   - "displayQuantity" MUST be clean and human-readable (e.g. "50 g", "1.5 kg", "8 cloves", "10 pcs", "2 tbsp", "3 pcs (approx. 300 g)").
 
 5. PLAIN NATURAL INGREDIENT NAMES FOR MATCHING:
-   - Return clear, standard ingredient names (e.g. "Chicken", "Basmati Rice", "Noodles", "Onion", "Tomato", "Garlic", "Ginger", "Green Chili", "Soy Sauce", "Eggs", "Cooking Oil", "Coconut Milk", "Salt", "Turmeric Powder").
+   - Return clear, standard ingredient names (e.g. "Chicken", "Basmati Rice", "Noodles", "Onion", "Tomato", "Garlic", "Ginger", "Green Chili", "Red Chilli Powder", "Soy Sauce", "Egg", "Cooking Oil", "Coconut Milk", "Salt", "Turmeric Powder", "Biryani Masala").
    - Always return "id": null and "isAvailable": false.`;
 
   const config = {
@@ -190,7 +207,7 @@ RESPONSE STYLE RULES — follow these strictly:
    ### 🍴 Serving
    [Serving suggestion: e.g. Serve hot with your favorite accompaniment.]
 
-5. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, or recalculating any ingredients or quantities. Otherwise, scale quantities correctly based on the target in the user request.
+5. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, or recalculating any ingredients or quantities. Otherwise, scale quantities realistically based on the serving size. Spices (e.g. chilli powder, turmeric, garam masala) and salt MUST ALWAYS be measured in grams (g), tsp, or tbsp — NEVER in kg. For example, for 10 people biryani, red chilli powder is roughly 40–70 g (around 2–4 tbsp), NEVER 1 kg or 2 kg. Eggs MUST ALWAYS be measured in pieces (pcs) — NEVER in kilograms (kg) or grams (g) (e.g. 10 eggs for 10 people Chicken Noodles, NEVER 1 kg).
 6. If a section like Cooking Tips is not needed for a simple recipe, omit it rather than leaving it empty.
 7. Keep each step's paragraph short and focused so users can easily read it on mobile screens.
 8. For meat, poultry, or seafood, include basic food safety guidance (e.g. chicken must be fully cooked — no pink inside, juices run clear).

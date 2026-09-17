@@ -223,3 +223,79 @@ export const searchProducts = async (req: Request, res: Response) => {
   }
 };
 
+// Get Products Ordered the Most by Users (with default fallback)
+export const getMostOrderedProducts = async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string, 10) || 10;
+
+    // 1. Fetch all non-cancelled orders to aggregate product order counts
+    const orders = await prisma.order.findMany({
+      where: {
+        status: { not: 'CANCELLED' },
+      },
+      select: {
+        items: true,
+      },
+    });
+
+    // 2. Count total ordered quantity per product ID
+    const orderCountMap = new Map<string, number>();
+    for (const order of orders) {
+      let items: any[] = [];
+      if (Array.isArray(order.items)) {
+        items = order.items;
+      } else if (typeof order.items === 'string') {
+        try {
+          items = JSON.parse(order.items);
+        } catch {
+          items = [];
+        }
+      }
+
+      for (const item of items) {
+        if (item && (item.id || item.productId)) {
+          const pid = String(item.id || item.productId);
+          const qty = Number(item.quantity);
+          const validQty = !isNaN(qty) && qty > 0 ? qty : 1;
+          orderCountMap.set(pid, (orderCountMap.get(pid) || 0) + validQty);
+        }
+      }
+    }
+
+    // 3. Fetch all active products
+    const activeProducts = await prisma.product.findMany({
+      where: {
+        status: 'ACTIVE',
+      },
+      include: {
+        category: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // 4. Sort all active products: products ordered the most appear first,
+    // followed by un-ordered/remaining active products (newest first).
+    // If no products have been ordered yet, all order counts are 0 and default order is preserved.
+    const sortedProducts = [...activeProducts].sort((a, b) => {
+      const countA = orderCountMap.get(a.id) || 0;
+      const countB = orderCountMap.get(b.id) || 0;
+      if (countB !== countA) {
+        return countB - countA;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    const limitParam = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    if (limitParam && !isNaN(limitParam) && limitParam > 0) {
+      return res.status(200).json(sortedProducts.slice(0, limitParam));
+    }
+
+    return res.status(200).json(sortedProducts);
+  } catch (error: any) {
+    console.error('Get Most Ordered Products Error:', error);
+    return res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+};
+
