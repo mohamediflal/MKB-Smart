@@ -1,11 +1,11 @@
 // @ts-nocheck
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   LineChart, Line, PieChart, Pie, Cell
 } from "recharts";
 import { Calendar, ChevronDown, Download, FileText, Check } from "lucide-react";
-import { Card } from "../index";
+import { Card, getSession } from "../index";
 import { jsPDF } from "jspdf";
 
 // Dynamic data configurations for each range filter
@@ -181,9 +181,427 @@ const dataByRange = {
 export default function Revenue() {
   const [selectedRange, setSelectedRange] = useState("All time");
   const [showRangeDropdown, setShowRangeDropdown] = useState(false);
+  const [dbOrders, setDbOrders] = useState([]);
+  const [dbProducts, setDbProducts] = useState([]);
 
   const ranges = ["Last 7 days", "Last 30 days", "Year to date", "All time"];
 
+  const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+  const fetchOrders = async () => {
+    try {
+      const session = getSession();
+      const token = session?.token;
+      const headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`${API_BASE}/api/orders/all-orders`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.orders)) {
+          setDbOrders(data.orders);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching orders in Revenue page:", err);
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/products/list`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDbProducts(data);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching products in Revenue page:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    fetchProducts();
+
+    // Poll every 5 seconds for real-time revenue updates
+    const interval = setInterval(() => {
+      fetchOrders();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const getRevenueForRange = (range, orders) => {
+    const validOrders = (orders || []).filter(o => o.status?.toUpperCase() !== 'CANCELLED');
+    const now = new Date();
+
+    if (range === "Last 7 days") {
+      const result = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        
+        const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+        const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+
+        let daySum = 0;
+        validOrders.forEach(o => {
+          const orderDate = new Date(o.createdAt);
+          if (!isNaN(orderDate.getTime()) && orderDate >= dayStart && orderDate <= dayEnd) {
+            daySum += Number(o.total) || 0;
+          }
+        });
+
+        result.push({ name: dayName, value: Number(daySum.toFixed(2)) });
+      }
+      return result;
+    }
+
+    if (range === "Last 30 days") {
+      const result = [
+        { name: "Week 1", value: 0 },
+        { name: "Week 2", value: 0 },
+        { name: "Week 3", value: 0 },
+        { name: "Week 4", value: 0 },
+      ];
+
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(now.getDate() - 29);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+      validOrders.forEach(o => {
+        const orderDate = new Date(o.createdAt);
+        if (!isNaN(orderDate.getTime()) && orderDate >= thirtyDaysAgo && orderDate <= now) {
+          const diffInMs = now.getTime() - orderDate.getTime();
+          const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+          
+          if (diffInDays <= 7) {
+            result[3].value += Number(o.total) || 0;
+          } else if (diffInDays <= 14) {
+            result[2].value += Number(o.total) || 0;
+          } else if (diffInDays <= 21) {
+            result[1].value += Number(o.total) || 0;
+          } else if (diffInDays <= 30) {
+            result[0].value += Number(o.total) || 0;
+          }
+        }
+      });
+
+      result.forEach(r => r.value = Number(r.value.toFixed(2)));
+      return result;
+    }
+
+    if (range === "Year to date") {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const currentMonthIdx = now.getMonth();
+      const activeMonths = months.slice(0, currentMonthIdx + 1);
+      const salesMap = Array(12).fill(0);
+      const currentYear = now.getFullYear();
+
+      validOrders.forEach(o => {
+        const orderDate = new Date(o.createdAt);
+        if (!isNaN(orderDate.getTime()) && orderDate.getFullYear() === currentYear) {
+          salesMap[orderDate.getMonth()] += Number(o.total) || 0;
+        }
+      });
+
+      return activeMonths.map((m, idx) => ({ name: m, value: Number(salesMap[idx].toFixed(2)) }));
+    }
+
+    // Default "All time" (12 months)
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const salesMap = Array(12).fill(0);
+    validOrders.forEach(o => {
+      const orderDate = new Date(o.createdAt);
+      if (!isNaN(orderDate.getTime())) {
+        salesMap[orderDate.getMonth()] += Number(o.total) || 0;
+      }
+    });
+    return months.map((m, idx) => ({ name: m, value: Number(salesMap[idx].toFixed(2)) }));
+  };
+
+  const getOrdersForRange = (range, orders) => {
+    const validOrders = (orders || []).filter(o => o.status?.toUpperCase() !== 'CANCELLED');
+    const now = new Date();
+
+    if (range === "Last 7 days") {
+      const result = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        
+        const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+        const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+
+        let dayCount = 0;
+        validOrders.forEach(o => {
+          const orderDate = new Date(o.createdAt);
+          if (!isNaN(orderDate.getTime()) && orderDate >= dayStart && orderDate <= dayEnd) {
+            dayCount += 1;
+          }
+        });
+
+        result.push({ name: dayName, value: dayCount });
+      }
+      return result;
+    }
+
+    if (range === "Last 30 days") {
+      const result = [
+        { name: "Week 1", value: 0 },
+        { name: "Week 2", value: 0 },
+        { name: "Week 3", value: 0 },
+        { name: "Week 4", value: 0 },
+      ];
+
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(now.getDate() - 29);
+      thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+      validOrders.forEach(o => {
+        const orderDate = new Date(o.createdAt);
+        if (!isNaN(orderDate.getTime()) && orderDate >= thirtyDaysAgo && orderDate <= now) {
+          const diffInMs = now.getTime() - orderDate.getTime();
+          const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+          
+          if (diffInDays <= 7) {
+            result[3].value += 1;
+          } else if (diffInDays <= 14) {
+            result[2].value += 1;
+          } else if (diffInDays <= 21) {
+            result[1].value += 1;
+          } else if (diffInDays <= 30) {
+            result[0].value += 1;
+          }
+        }
+      });
+
+      return result;
+    }
+
+    if (range === "Year to date") {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const currentMonthIdx = now.getMonth();
+      const activeMonths = months.slice(0, currentMonthIdx + 1);
+      const countMap = Array(12).fill(0);
+      const currentYear = now.getFullYear();
+
+      validOrders.forEach(o => {
+        const orderDate = new Date(o.createdAt);
+        if (!isNaN(orderDate.getTime()) && orderDate.getFullYear() === currentYear) {
+          countMap[orderDate.getMonth()] += 1;
+        }
+      });
+
+      return activeMonths.map((m, idx) => ({ name: m, value: countMap[idx] }));
+    }
+
+    // Default "All time" (12 months)
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const countMap = Array(12).fill(0);
+    validOrders.forEach(o => {
+      const orderDate = new Date(o.createdAt);
+      if (!isNaN(orderDate.getTime())) {
+        countMap[orderDate.getMonth()] += 1;
+      }
+    });
+    return months.map((m, idx) => ({ name: m, value: countMap[idx] }));
+  };
+
+  const calculateCategoryRevenue = (ordersList, productsList) => {
+    const parsePrice = (val) => {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      if (typeof val === 'string') {
+        const cleaned = val.replace(/[^0-9.]/g, '');
+        return parseFloat(cleaned) || 0;
+      }
+      return 0;
+    };
+
+    const prodCatMap = {};
+    (productsList || []).forEach((p) => {
+      const catName = typeof p.category === 'object' ? p.category?.name : p.category;
+      if (catName) {
+        if (p.id) prodCatMap[p.id] = catName;
+        if (p.name) prodCatMap[p.name.trim().toLowerCase()] = catName;
+      }
+    });
+
+    const categoryMap = {};
+
+    (ordersList || []).forEach((o) => {
+      if (o.status?.toUpperCase() === 'CANCELLED') return;
+
+      let items = o.items;
+      if (typeof items === 'string') {
+        try {
+          items = JSON.parse(items);
+        } catch (e) {
+          items = [];
+        }
+      }
+
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach((item) => {
+          let cat = item.category;
+          if (typeof cat === 'object' && cat !== null) {
+            cat = cat.name;
+          }
+          if (!cat) {
+            cat = prodCatMap[item.id] || prodCatMap[item.productId] || (item.name ? prodCatMap[item.name.trim().toLowerCase()] : null);
+          }
+          if (!cat) {
+            const nameLower = (item.name || '').toLowerCase();
+            if (nameLower.includes('milk') || nameLower.includes('yoghurt') || nameLower.includes('butter') || nameLower.includes('cheese') || nameLower.includes('dairy')) cat = 'Dairy';
+            else if (nameLower.includes('rice') || nameLower.includes('sugar') || nameLower.includes('flour') || nameLower.includes('staple')) cat = 'Staples';
+            else if (nameLower.includes('chicken') || nameLower.includes('meat') || nameLower.includes('beef') || nameLower.includes('fish') || nameLower.includes('egg')) cat = 'Meat';
+            else if (nameLower.includes('cola') || nameLower.includes('pepsi') || nameLower.includes('water') || nameLower.includes('tea') || nameLower.includes('coffee') || nameLower.includes('beverage') || nameLower.includes('drink')) cat = 'Beverages';
+            else if (nameLower.includes('apple') || nameLower.includes('banana') || nameLower.includes('fruit') || nameLower.includes('mango')) cat = 'Fruits';
+            else if (nameLower.includes('potato') || nameLower.includes('onion') || nameLower.includes('tomato') || nameLower.includes('vegetable')) cat = 'Vegetables';
+            else if (nameLower.includes('soap') || nameLower.includes('detergent') || nameLower.includes('cleaner')) cat = 'Household';
+            else if (nameLower.includes('biscuit') || nameLower.includes('cracker') || nameLower.includes('bread') || nameLower.includes('cake') || nameLower.includes('chocolate')) cat = 'Bakery';
+            else cat = 'Other';
+          }
+
+          const qty = Number(item.quantity) || 1;
+          const price = parsePrice(item.price);
+          const itemTotal = price > 0 ? qty * price : parsePrice(item.total);
+
+          if (itemTotal > 0) {
+            categoryMap[cat] = (categoryMap[cat] || 0) + itemTotal;
+          }
+        });
+      }
+    });
+
+    const totalRev = Object.values(categoryMap).reduce((sum, v) => sum + (Number(v) || 0), 0);
+    const PIE_COLORS = ["#15803d", "#22c55e", "#84cc16", "#f59e0b", "#3b82f6", "#ec4899", "#ca8a04", "#a855f7"];
+
+    const result = Object.keys(categoryMap)
+      .map((catName, idx) => ({
+        name: catName,
+        value: totalRev > 0 ? Number(((categoryMap[catName] / totalRev) * 100).toFixed(2)) : 0,
+        amount: Number(categoryMap[catName].toFixed(2)),
+        color: PIE_COLORS[idx % PIE_COLORS.length],
+      }))
+      .filter((c) => c.value > 0);
+
+    if (result.length === 0) {
+      return [
+        { name: 'Fruits', value: 15, color: "#15803d" },
+        { name: 'Vegetables', value: 18, color: "#22c55e" },
+        { name: 'Dairy', value: 22, color: "#84cc16" },
+        { name: 'Bakery', value: 10, color: "#f59e0b" },
+        { name: 'Meat', value: 12, color: "#3b82f6" },
+        { name: 'Beverages', value: 8, color: "#ec4899" },
+        { name: 'Staples', value: 10, color: "#ca8a04" },
+        { name: 'Household', value: 5, color: "#a855f7" },
+      ];
+    }
+
+    return result;
+  };
+
+  const getTopSellingProducts = (range, orders, productsList) => {
+    const parsePrice = (val) => {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      if (typeof val === 'string') {
+        const cleaned = val.replace(/[^0-9.]/g, '');
+        return parseFloat(cleaned) || 0;
+      }
+      return 0;
+    };
+
+    const prodNameMap = {};
+    (productsList || []).forEach((p) => {
+      if (p.id && p.name) {
+        prodNameMap[p.id] = p.name;
+      }
+    });
+
+    const now = new Date();
+    let startDate = null;
+
+    if (range === "Last 7 days") {
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 6);
+      startDate.setHours(0, 0, 0, 0);
+    } else if (range === "Last 30 days") {
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+    } else if (range === "Year to date") {
+      startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    }
+
+    const validOrders = (orders || []).filter(o => {
+      if (o.status?.toUpperCase() === 'CANCELLED') return false;
+      if (startDate) {
+        const orderDate = new Date(o.createdAt);
+        if (isNaN(orderDate.getTime()) || orderDate < startDate) return false;
+      }
+      return true;
+    });
+
+    const productMap = {};
+
+    validOrders.forEach((o) => {
+      let items = o.items;
+      if (typeof items === 'string') {
+        try {
+          items = JSON.parse(items);
+        } catch (e) {
+          items = [];
+        }
+      }
+
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach((item) => {
+          const name = item.name || prodNameMap[item.id] || prodNameMap[item.productId] || 'Unknown Product';
+          const qty = Number(item.quantity) || 1;
+          const price = parsePrice(item.price);
+          const itemTotal = price > 0 ? qty * price : parsePrice(item.total);
+
+          if (!productMap[name]) {
+            productMap[name] = { name, sold: 0, value: 0 };
+          }
+          productMap[name].sold += qty;
+          productMap[name].value += itemTotal;
+        });
+      }
+    });
+
+    const topList = Object.values(productMap)
+      .map(p => ({
+        name: p.name,
+        sold: p.sold,
+        value: Number(p.value.toFixed(2))
+      }))
+      .sort((a, b) => b.sold - a.sold || b.value - a.value)
+      .slice(0, 5);
+
+    if (topList.length === 0) {
+      return [
+        { name: "Organic Bananas", sold: 120, value: 24000.00 },
+        { name: "Fresh Avocado", sold: 95, value: 38000.00 },
+        { name: "Whole Milk 1L", sold: 80, value: 32000.00 },
+        { name: "Sourdough Loaf", sold: 65, value: 39000.00 },
+        { name: "Free-Range Eggs", sold: 50, value: 25000.00 },
+      ];
+    }
+
+    return topList;
+  };
+
+  const dynamicRevenueData = getRevenueForRange(selectedRange, dbOrders);
+  const dynamicOrdersData = getOrdersForRange(selectedRange, dbOrders);
+  const dynamicCategoryRevenue = calculateCategoryRevenue(dbOrders, dbProducts);
+  const dynamicTopProducts = getTopSellingProducts(selectedRange, dbOrders, dbProducts);
   const activeData = dataByRange[selectedRange] || dataByRange["All time"];
 
   // Functional CSV Export
@@ -199,13 +617,13 @@ export default function Revenue() {
     
     csvContent += "\nCategory Revenue Distribution\n";
     csvContent += "Category,Percentage (%)\n";
-    activeData.categories.forEach(cat => {
-      csvContent += `${cat.name},${cat.value}\n`;
+    dynamicCategoryRevenue.forEach(cat => {
+      csvContent += `${cat.name},${cat.value}%\n`;
     });
     
     csvContent += "\nTop Selling Products\n";
     csvContent += "Product Name,Units Sold,Revenue (LKR)\n";
-    activeData.products.forEach(prod => {
+    dynamicTopProducts.forEach(prod => {
       csvContent += `${prod.name},${prod.sold},${prod.value}\n`;
     });
 
@@ -278,7 +696,7 @@ export default function Revenue() {
     
     doc.setFont("helvetica", "normal");
     y = 36;
-    activeData.categories.forEach(cat => {
+    dynamicCategoryRevenue.forEach(cat => {
       doc.text(cat.name, 14, y);
       doc.text(`${cat.value}%`, 60, y);
       y += 8;
@@ -302,10 +720,10 @@ export default function Revenue() {
     
     doc.setFont("helvetica", "normal");
     y += 8;
-    activeData.products.forEach((prod, idx) => {
+    dynamicTopProducts.forEach((prod, idx) => {
       doc.text(`${idx + 1}. ${prod.name}`, 14, y);
       doc.text(prod.sold.toString(), 80, y);
-      doc.text(`Rs. ${prod.value.toLocaleString()}`, 130, y);
+      doc.text(`Rs. ${prod.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 130, y);
       y += 8;
     });
     
@@ -398,7 +816,7 @@ export default function Revenue() {
           <div className="mt-6 h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={activeData.revenue}
+                data={dynamicRevenueData}
                 margin={{ left: -10, right: 8, top: 8, bottom: 0 }}
               >
                 <CartesianGrid
@@ -413,11 +831,10 @@ export default function Revenue() {
                   tick={{ fontSize: 12, fill: "#94a3b8" }}
                 />
                 <YAxis
-                  domain={[0, activeData.yAxisMaxRevenue]}
-                  ticks={activeData.yAxisTicksRevenue}
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 12, fill: "#94a3b8" }}
+                  tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}
                 />
                 <Tooltip
                   cursor={{ fill: "rgba(21, 128, 61, 0.04)" }}
@@ -449,7 +866,7 @@ export default function Revenue() {
           <div className="mt-6 h-72">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={activeData.orders}
+                data={dynamicOrdersData}
                 margin={{ left: -10, right: 8, top: 8, bottom: 0 }}
               >
                 <CartesianGrid
@@ -464,11 +881,10 @@ export default function Revenue() {
                   tick={{ fontSize: 12, fill: "#94a3b8" }}
                 />
                 <YAxis
-                  domain={[0, activeData.yAxisMaxOrders]}
-                  ticks={activeData.yAxisTicksOrders}
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 12, fill: "#94a3b8" }}
+                  allowDecimals={false}
                 />
                 <Tooltip
                   contentStyle={{
@@ -504,19 +920,19 @@ export default function Revenue() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={activeData.categories}
+                  data={dynamicCategoryRevenue}
                   dataKey="value"
                   nameKey="name"
                   innerRadius={65}
                   outerRadius={95}
                   paddingAngle={3}
                 >
-                  {activeData.categories.map((entry, index) => (
+                  {dynamicCategoryRevenue.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => `${value}%`}
+                  formatter={(value) => `${Number(value).toFixed(2)}%`}
                   contentStyle={{
                     borderRadius: 12,
                     backgroundColor: "var(--card)",
@@ -529,7 +945,7 @@ export default function Revenue() {
           </div>
           {/* Centered Legend at the bottom */}
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
-            {activeData.categories.map((cat) => (
+            {dynamicCategoryRevenue.map((cat) => (
               <div key={cat.name} className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                 <span>{cat.name}</span>
@@ -544,10 +960,9 @@ export default function Revenue() {
             <h3 className="text-[17px] font-bold text-slate-900 dark:text-white">Top Selling Products</h3>
           </div>
           <div className="mt-6 space-y-6.5">
-            {activeData.products.map((product, idx) => {
-              const activeProducts = activeData.products;
-              const maxSold = activeProducts.length > 0 ? Math.max(...activeProducts.map(p => p.sold)) : 1;
-              const percentage = (product.sold / maxSold) * 100;
+            {dynamicTopProducts.map((product, idx) => {
+              const maxSold = dynamicTopProducts.length > 0 ? Math.max(...dynamicTopProducts.map(p => p.sold)) : 1;
+              const percentage = maxSold > 0 ? (product.sold / maxSold) * 100 : 0;
               return (
                 <div key={product.name} className="space-y-1.5">
                   <div className="flex justify-between items-center text-[15px] font-semibold">
@@ -555,7 +970,7 @@ export default function Revenue() {
                       {idx + 1}. {product.name}
                     </span>
                     <span className="text-slate-400 font-medium text-[13px]">
-                      {product.sold} sold · Rs. {product.value}
+                      {product.sold} sold
                     </span>
                   </div>
                   {/* Progress bar container */}
