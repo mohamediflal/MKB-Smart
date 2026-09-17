@@ -123,7 +123,6 @@ function EditProductModal({ product, onClose, onSave, categories: propCategories
         active: parseInt(stock, 10) > 0,
         image: imagePreview || product.image,
       });
-      alert("Product updated successfully!");
       onClose();
       return;
     }
@@ -157,7 +156,6 @@ function EditProductModal({ product, onClose, onSave, categories: propCategories
 
       if (res.ok) {
         const data = await res.json();
-        alert("Product updated successfully!");
 
         const updatedProduct = data.product;
         const mappedProd = {
@@ -178,11 +176,10 @@ function EditProductModal({ product, onClose, onSave, categories: propCategories
         onClose();
       } else {
         const errData = await res.json().catch(() => ({}));
-        alert(errData.message || "Failed to update product");
+        console.error("Failed to update product:", errData);
       }
     } catch (err) {
       console.error("Error updating product:", err);
-      alert("An error occurred while updating the product.");
     }
   };
 
@@ -573,8 +570,6 @@ export default function Products() {
         categories={dbCategories}
         onSave={(newProd) => {
           setProductList([newProd, ...productList]);
-          setToastMessage("Product added successfully");
-          setToastKey(prev => prev + 1);
         }}
       />
       <PageHeader title="Products" subtitle="Manage store catalog and items" />
