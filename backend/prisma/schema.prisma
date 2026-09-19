@@ -265,6 +265,7 @@ model RecipeHistory {
   recipeName    String
   quantityType  String
   quantityValue String
+  ingredients   String?
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

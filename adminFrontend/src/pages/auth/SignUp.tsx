@@ -1,9 +1,10 @@
 // @ts-nocheck
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { addAdmin } from '../index'
 
-function Field({ label, type, value, onChange, placeholder, icon }) {
+function Field({ label, type, value, onChange, placeholder, icon, endIcon }) {
 	return (
 		<label className="block">
 			<div className="mb-2 text-sm font-semibold text-slate-800">{label}</div>
@@ -17,8 +18,9 @@ function Field({ label, type, value, onChange, placeholder, icon }) {
 					value={value}
 					onChange={onChange}
 					placeholder={placeholder}
-					className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.05)] outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+					className={`h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 ${endIcon ? 'pr-12' : 'pr-4'} text-sm text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.05)] outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10`}
 				/>
+				{endIcon && <span className="absolute inset-y-0 right-4 flex items-center">{endIcon}</span>}
 			</div>
 		</label>
 	)
@@ -30,12 +32,18 @@ function SignUp({ onModeChange }) {
 	const [email, setEmail] = useState('')
 	const [password, setPassword] = useState('')
 	const [confirmPassword, setConfirmPassword] = useState('')
+	const [showPassword, setShowPassword] = useState(false)
+	const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 	const [error, setError] = useState(null)
 	const [isLoading, setIsLoading] = useState(false)
 
 	const handleSubmit = async (event) => {
 		event.preventDefault()
 		setError(null)
+		if (password.length <= 8) {
+			setError('Password must be more than 8 characters.')
+			return
+		}
 		if (password !== confirmPassword) {
 			setError('Passwords do not match')
 			return
@@ -125,7 +133,7 @@ function SignUp({ onModeChange }) {
 
 						<Field
 							label="Password"
-							type="password"
+							type={showPassword ? 'text' : 'password'}
 							value={password}
 							onChange={(event) => setPassword(event.target.value)}
 							placeholder="Create a password"
@@ -148,12 +156,27 @@ function SignUp({ onModeChange }) {
 									/>
 								</svg>
 							}
+							endIcon={
+								<button
+									type="button"
+									onClick={() => setShowPassword(!showPassword)}
+									className="text-slate-400 hover:text-slate-600 focus:outline-none bg-transparent border-0 cursor-pointer p-1 transition-colors"
+									aria-label={showPassword ? 'Hide password' : 'Show password'}
+									title={showPassword ? 'Hide password' : 'Show password'}
+								>
+									{showPassword ? (
+										<EyeOff className="h-5 w-5" />
+									) : (
+										<Eye className="h-5 w-5" />
+									)}
+								</button>
+							}
 						/>
 					</div>
 
 					<Field
 						label="Confirm password"
-						type="password"
+						type={showConfirmPassword ? 'text' : 'password'}
 						value={confirmPassword}
 						onChange={(event) => setConfirmPassword(event.target.value)}
 						placeholder="Re-enter your password"
@@ -175,6 +198,21 @@ function SignUp({ onModeChange }) {
 									strokeWidth="1.8"
 								/>
 							</svg>
+						}
+						endIcon={
+							<button
+								type="button"
+								onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+								className="text-slate-400 hover:text-slate-600 focus:outline-none bg-transparent border-0 cursor-pointer p-1 transition-colors"
+								aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+								title={showConfirmPassword ? 'Hide password' : 'Show password'}
+							>
+								{showConfirmPassword ? (
+									<EyeOff className="h-5 w-5" />
+								) : (
+									<Eye className="h-5 w-5" />
+								)}
+							</button>
 						}
 					/>
 

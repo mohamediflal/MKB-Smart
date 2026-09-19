@@ -1,9 +1,19 @@
 import OpenAI from "openai";
 
-const nvidiaClient = new OpenAI({
-  baseURL: "https://integrate.api.nvidia.com/v1",
-  apiKey: process.env.NVIDIA_API_KEY || "",
-});
+let _nvidiaClient: OpenAI | null = null;
+function getNvidiaClient(): OpenAI | null {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) return null;
+  if (!_nvidiaClient) {
+    _nvidiaClient = new OpenAI({
+      baseURL: "https://integrate.api.nvidia.com/v1",
+      apiKey,
+    });
+  }
+  return _nvidiaClient;
+}
+
+const NVIDIA_MODEL = process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct";
 
 export interface StoreProductContext {
   id: string;
@@ -53,11 +63,15 @@ TASK: Calculate and generate the complete, realistic, culinary-accurate grocery 
 
 CRITICAL RULES:
 1. STRICT RECIPE RELEVANCE (MOST IMPORTANT):
-   - Generate ONLY the ingredients directly required to prepare/cook "${recipeName}" from scratch.
+   - Generate ONLY the ingredients directly and genuinely required to prepare/cook "${recipeName}" from scratch.
+   - For Biryani (Chicken, Mutton, Beef, Fish, Prawn, Vegetable Biryani): Include Basmati rice, primary protein/vegetables specifically matching the dish name, onions, tomatoes, yogurt, ginger, garlic, green chilies, mint leaves, coriander leaves, ghee/oil, whole spices (cinnamon, cloves, cardamom, bay leaf, star anise), biryani masala, turmeric, chili powder, salt.
+   - NEVER include Cocoa Powder, chocolate, vanilla, custard powder, baking powder, pasta, noodles, or sweet bakery items in Biryani or any savory dish!
+   - NEVER cross-contaminate proteins (e.g. no mutton or beef in Chicken Biryani, no meat or seafood in Vegetable Biryani).
    - Do NOT include optional side dishes, serving suggestions, accompaniments, or unrelated staple carbs (such as Rice, Basmati Rice, Bread, Roti, Naan, Noodles, Pasta) UNLESS "${recipeName}" itself is a dish that inherently includes that grain/carbs in its preparation (e.g. Biriyani, Fried Rice, Noodles, Pasta, Risotto, Macaroni).
    - EXAMPLE: For "Beef Curry", include Beef, Onion, Tomato, Garlic, Ginger, Green Chili, Curry Leaves, Coconut Milk, Cooking Oil, Spices, Salt. Do NOT include Basmati Rice or any rice!
    - EXAMPLE: For "Beef Biriyani", Basmati Rice IS required because rice is an essential cooked component of biriyani.
    - BEFORE outputting each ingredient, verify that it is actually an ingredient cooked inside "${recipeName}". If it is a side dish or serving suggestion eaten WITH the dish, REMOVE IT!
+   - The grocery ingredients list and step-by-step instructions MUST correspond to the exact same ingredients, quantities, and units.
 
 2. SERVING SIZE SCALING:
    - You MUST calculate ingredient quantities strictly based on the requested target: ${targetDescription}.
@@ -65,21 +79,36 @@ CRITICAL RULES:
    - Never return identical quantities for different serving amounts.
 
 3. CULINARY REALISM & PROPORTIONS:
-   - Main Proteins (beef, chicken, fish, mutton): ~150g-200g raw per person (e.g. 10 people = 1.5kg-2kg, 5 people = 750g-1kg, 20 people = 3kg-4kg).
-   - Main Grains/Carbs (ONLY if the recipe explicitly includes them, e.g. biriyani, fried rice, noodles, pasta): ~100g-150g dry per person (e.g. 10 people = 1kg-1.5kg).
-   - Vegetables (onion, tomato, carrot, cabbage, capsicum): ~50g-100g each per person (e.g. 10 people = 500g-1kg onion, 500g-800g tomato).
-   - Aromatics (ginger, garlic): ~5g-10g each per person (e.g. 10 people = 50g-100g ginger, 50g-100g garlic).
-   - Liquids/Fats (oil, ghee, yogurt, coconut milk): ~15-20ml oil per person, ~50g-100g yogurt/coconut milk per person (e.g. 10 people = 150-200ml oil, 500g yogurt, 1L coconut milk).
-   - Spices & Salt: proportional amounts (e.g. 10 people = 2-5 tsp spices, 3-10 tsp salt).
-   - Countable items (lemon, green chili, cinnamon sticks, cardamom pods, cloves, bay leaves): exact counts (e.g. 10 people = 10 green chilies, 5 lemons, 20 cardamom pods).
+   - Main Proteins (beef, chicken, fish, mutton, paneer): ~150g-200g raw per person (e.g. 10 people = 1.5kg-2kg, 5 people = 750g-1kg, 20 people = 3kg-4kg).
+   - EGGS (CRITICAL RULE):
+     * Eggs MUST ALWAYS be measured in pieces ("pcs"). NEVER measure eggs in kilograms ("kg"), grams ("g"), or any weight units!
+     * For dishes requiring eggs (e.g. Chicken Noodles, Veg Noodles, Egg Noodles, Fried Rice, Kottu, Omelette):
+       ~1 egg per person (e.g. 10 people Chicken Noodles = 10 pcs / 10 eggs, 5 people = 5 pcs, 1 person = 1-2 pcs).
+     * unit MUST be "pcs" and displayQuantity MUST be formatted as "[N] pcs" (e.g. quantity: 10, unit: "pcs", displayQuantity: "10 pcs").
+   - Main Grains/Carbs (ONLY if the recipe explicitly includes them, e.g. biryani, fried rice, noodles, pasta): ~100g-120g dry per person (e.g. 10 people = 1kg-1.2kg).
+   - Vegetables (onion, tomato, carrot, cabbage, capsicum): ~50g-80g each per person (e.g. 10 people = 500g-800g onion, 300g-500g tomato).
+   - Aromatics (ginger, garlic): ~4g-6g each per person (e.g. 10 people = 40g-60g garlic / 8-12 cloves, 30g-50g ginger).
+   - Liquids/Fats (oil, ghee, yogurt, coconut milk): ~15-20ml oil per person, ~25g-40g yogurt/coconut milk per person (e.g. 10 people = 150-200ml oil, 250g-400g yogurt).
+   - SPICES & SALT (CRITICAL RULE):
+     * Spices (Chili powder, turmeric, coriander, cumin, garam masala, biryani masala, black pepper, curry powder, paprika) and Salt MUST ALWAYS be measured in grams ("g"), teaspoons ("tsp"), or tablespoons ("tbsp").
+     * NEVER use "kg" or "L" for spices or salt! A value like 1 kg or 2 kg of chili powder is STRICTLY PROHIBITED.
+     * For Red Chili Powder / Chilli Powder:
+       - 1 person: ~4g–7g (~1 tsp)
+       - 5 people: ~20g–35g (~1.5–2 tbsp)
+       - 10 people: ~40g–70g (~2.5–4.5 tbsp)
+       - 20 people: ~80g–140g
+     * Turmeric: ~1g–2g per person (10 people = 10g–15g).
+     * Garam / Biryani Masala: ~2g–4g per person (10 people = 20g–35g).
+     * Salt: ~3g–5g per person (10 people = 30g–45g).
+   - Countable items (eggs, lemon, green chili, cinnamon sticks, cardamom pods, cloves, bay leaves): exact counts in "pcs". EGGS MUST ALWAYS BE COUNTED IN "pcs" (e.g. 10 people chicken noodles = 10 pcs). NEVER use "kg" or "g" for eggs or fresh chilies!
 
 4. UNITS & FORMATTING:
-   - Use metric units: "kg", "g", "L", "ml". Use "pcs" for countable items, "bunches" for herbs, "tsp"/"tbsp" for small spices.
-   - "quantity" MUST be a clean numeric float corresponding to "unit" (e.g. quantity: 1.5, unit: "kg"; quantity: 800, unit: "g"; quantity: 200, unit: "ml"; quantity: 10, unit: "pcs").
-   - "displayQuantity" MUST be a human-readable string matching "quantity" and "unit" (e.g. "1.5 kg", "800 g", "200 ml", "1 L", "10 pcs", "5 tsp").
+   - Use metric units: "kg", "g", "L", "ml". Use "pcs" for countable items like eggs, "bunches" for herbs, "tsp"/"tbsp" for small spices.
+   - "quantity" MUST be a clean numeric float corresponding to "unit" (e.g. quantity: 50, unit: "g"; quantity: 1.5, unit: "kg"; quantity: 200, unit: "ml"; quantity: 8, unit: "pcs"; quantity: 10, unit: "pcs").
+   - "displayQuantity" MUST be a human-readable string matching "quantity" and "unit" (e.g. "50 g", "1.5 kg", "200 ml", "1 L", "8 pcs", "10 pcs", "2 tbsp").
 
 5. PLAIN INGREDIENT NAMES FOR MATCHING:
-   - Use standard natural ingredient names (e.g. "Beef", "Chicken", "Onion", "Tomato", "Green Chili", "Ginger", "Garlic", "Yogurt", "Cooking Oil", "Ghee", "Mint Leaves", "Coriander Leaves", "Lemon", "Cinnamon", "Cardamom", "Cloves", "Bay Leaf", "Turmeric Powder", "Chili Powder", "Salt", "Coconut Milk", "Curry Leaves", "Fish", "Noodles", "Basmati Rice").
+   - Use standard natural ingredient names (e.g. "Beef", "Chicken", "Onion", "Tomato", "Green Chili", "Ginger", "Garlic", "Yogurt", "Cooking Oil", "Ghee", "Mint Leaves", "Coriander Leaves", "Lemon", "Cinnamon", "Cardamom", "Cloves", "Bay Leaf", "Turmeric Powder", "Red Chili Powder", "Biryani Masala", "Salt", "Coconut Milk", "Curry Leaves", "Fish", "Noodles", "Egg", "Basmati Rice").
    - Always return "id": null and "isAvailable": false. Server matches products independently.
 
 Return STRICT JSON only (no markdown, no extra text) matching this schema:
@@ -104,8 +133,19 @@ Return STRICT JSON only (no markdown, no extra text) matching this schema:
   try {
     console.log(`Calling NVIDIA AI for recipe: "${recipeName}" (${targetDescription})...`);
 
-    const aiPromise = nvidiaClient.chat.completions.create({
-      model: "meta/llama-3.1-8b-instruct",
+    const client = getNvidiaClient();
+    if (!client) {
+      console.warn("NVIDIA_API_KEY is not configured.");
+      return {
+        recipeName,
+        servings: numVal,
+        ingredients: [],
+        instructions: [`Prepare ingredients for ${recipeName}.`, `Cook thoroughly according to serving size (${targetDescription}).`]
+      };
+    }
+
+    const aiPromise = client.chat.completions.create({
+      model: NVIDIA_MODEL,
       messages: [
         {
           role: "system",
@@ -122,7 +162,7 @@ Return STRICT JSON only (no markdown, no extra text) matching this schema:
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("NVIDIA AI API call timed out after 45s")), 45000)
+      setTimeout(() => reject(new Error("NVIDIA AI API call timed out after 35s")), 35000)
     );
 
     const response: any = await Promise.race([aiPromise, timeoutPromise]);
@@ -217,7 +257,7 @@ RESPONSE STYLE RULES — follow these strictly:
    👨‍🍳 Step-by-Step Instructions: [numbered steps, each clearly titled]
    ✅ Tips: [1–3 practical beginner tips if helpful]
 
-5. SCALE quantities correctly. If the recipe is for 10 people, provide quantities suitable for 10 people. If it is for 5 people, halve them. Never give the same generic quantities regardless of the serving size.
+5. SCALE quantities realistically. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, adding, or recalculating any ingredients or quantities. In the cooking steps, use ONLY these ingredients and their exact quantities. Never introduce unrelated ingredients (such as Cocoa Powder for Biryani or savory dishes). Otherwise, scale quantities accurately for the serving size. Spices (e.g. chili powder, turmeric, garam masala) and salt MUST ALWAYS be measured in grams (g), tsp, or tbsp — NEVER in kg. For example, for 10 people biryani, red chili powder is roughly 40–70 g (around 2–4 tbsp), NEVER 1 kg or 2 kg. Eggs MUST ALWAYS be measured in pieces (pcs) — NEVER in kg or g (e.g. 10 eggs for 10 people Chicken Noodles, NEVER 1 kg).
 
 6. For every important cooking stage, tell the user HOW TO KNOW IT IS READY:
    - BAD: "Cook the chicken for 20 minutes."
@@ -241,9 +281,14 @@ Your primary goal: explain what the user needs to do, step by step, so that a pe
       }
     ];
 
+    const client = getNvidiaClient();
+    if (!client) {
+      return "Sorry, the AI service is currently not configured.";
+    }
+
     // Wrap in a 45-second timeout (same pattern as generateGroceryRecipe)
-    const aiPromise = nvidiaClient.chat.completions.create({
-      model: "meta/llama-3.1-8b-instruct",
+    const aiPromise = client.chat.completions.create({
+      model: NVIDIA_MODEL,
       messages,
       temperature: 0.4,
       top_p: 0.8,
@@ -251,7 +296,7 @@ Your primary goal: explain what the user needs to do, step by step, so that a pe
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("NVIDIA AI Chat timed out after 45s")), 45000)
+      setTimeout(() => reject(new Error("NVIDIA AI Chat timed out after 35s")), 35000)
     );
 
     const response: any = await Promise.race([aiPromise, timeoutPromise]);

@@ -28,21 +28,22 @@ type AuthContextValue = {
 };
 
 const getApiBaseUrl = () => {
-  // First, prefer an explicit env/config value so `EXPO_PUBLIC_API_URL` or `VITE_BACKEND_URL` can control the host.
   const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL)
     || (typeof process !== 'undefined' && (process as any).env && (process as any).env.VITE_BACKEND_URL)
     || (Constants.manifest && (Constants.manifest as any).extra && (Constants.manifest as any).extra.VITE_BACKEND_URL)
     || (Constants.expoConfig && (Constants.expoConfig as any).extra && (Constants.expoConfig as any).extra.VITE_BACKEND_URL)
     || (typeof (global as any).VITE_BACKEND_URL !== 'undefined' ? (global as any).VITE_BACKEND_URL : undefined);
 
-  if (envUrl) {
+  // If a production HTTPS URL is configured, always respect it
+  if (envUrl && envUrl.startsWith("https://")) {
     return envUrl.replace(/\/+$/, '');
   }
 
   if (Platform.OS === "web") {
-    return "http://localhost:3000";
+    return envUrl ? envUrl.replace(/\/+$/, '') : "http://localhost:3000";
   }
 
+  // Detect Expo Metro bundler host in development (dynamically adapts if laptop IP changes)
   const debuggerHost =
     (typeof Constants.manifest === "object" && Constants.manifest?.debuggerHost)
     || (typeof Constants.manifest2 === "object" && Constants.manifest2?.debuggerHost)
@@ -57,6 +58,10 @@ const getApiBaseUrl = () => {
       }
       return `http://${host}:3000`;
     }
+  }
+
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
   }
 
   if (Platform.OS === "android") {
@@ -202,6 +207,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async ({ name, email, phone, password, otp }: { name: string; email: string; phone?: string; password: string; otp: string }) => {
     if (!name || !email || !password || !otp) {
       throw new Error("Name, email, password, and verification OTP are required.");
+    }
+
+    if (password.length <= 8) {
+      throw new Error("Password must be more than 8 characters.");
     }
 
     const response = await fetch(`${API_BASE_URL}/api/auth/register`, {

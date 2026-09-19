@@ -36,6 +36,11 @@ export default function Register() {
 			return
 		}
 
+		if (password.length <= 8) {
+			Alert.alert('Password must be more than 8 characters.')
+			return
+		}
+
 		if (password !== confirmPassword) {
 			Alert.alert('Passwords do not match.')
 			return
@@ -141,13 +146,18 @@ export default function Register() {
 
 					{/* Password */}
 					<Text style={{ color: '#556', marginBottom: 6, fontSize: 12 }}>Password</Text>
-					<View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eef6eb', borderRadius: 12, paddingHorizontal: 12, height: 48, marginBottom: 10 }}>
+					<View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eef6eb', borderRadius: 12, paddingHorizontal: 12, height: 48, marginBottom: password && password.length <= 8 ? 4 : 10 }}>
 						<Text style={{ marginRight: 8 }}>🔒</Text>
 						<TextInput placeholder="Create a strong password" secureTextEntry={!showPassword} value={password} onChangeText={setPassword} style={{ flex: 1 }} />
 						<Pressable onPress={() => setShowPassword(!showPassword)}>
 							<Text style={{ marginLeft: 10 }}>{showPassword ? '🙈' : '👁️'}</Text>
 						</Pressable>
 					</View>
+					{password.length > 0 && password.length <= 8 && (
+						<Text style={{ color: '#d32f2f', fontSize: 12, marginBottom: 8, marginLeft: 4 }}>
+							Password must be more than 8 characters.
+						</Text>
+					)}
 
 					{/* Confirm Password */}
 					<Text style={{ color: '#556', marginBottom: 6, fontSize: 12 }}>Confirm Password</Text>

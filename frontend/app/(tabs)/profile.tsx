@@ -236,16 +236,12 @@ export default function Profile() {
                 })
               }
             />
-            <MenuRow
-              icon="language-outline"
-              label="Language"
-              value="English"
-              showDivider
-            />
+            
             <MenuRow
               icon="help-circle-outline"
               label="Help Center"
               showDivider
+              onPress={() => router.push("/help")}
             />
           </View>
 

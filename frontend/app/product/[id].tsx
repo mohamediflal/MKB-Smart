@@ -447,22 +447,6 @@ export default function ProductDetailsScreen() {
 
         <View className="mx-6 my-4 h-px bg-slate-200/80" />
 
-        {/* Review */}
-        <Pressable
-          className="mx-4 flex-row items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
-          accessibilityRole="button"
-          accessibilityLabel="Open reviews"
-        >
-          <Text className="text-sm font-bold tracking-wide text-slate-900">Review</Text>
-          <View className="flex-row items-center">
-            <View className="mr-2 flex-row items-center rounded-full bg-amber-50 px-2 py-1">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Ionicons key={i} name="star" size={13} color="#f59e0b" />
-              ))}
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-          </View>
-        </Pressable>
 
         <View className="mx-6 my-4 h-px bg-slate-200/80" />
 

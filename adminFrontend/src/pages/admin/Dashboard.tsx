@@ -107,9 +107,163 @@ function AdminDashboard({ onSignOut }) {
       setLoading(false);
     };
     loadData();
+
+    // Poll orders every 5 seconds for real-time sales graph updates
+    const interval = setInterval(() => {
+      fetchOrders();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const data = range === "weekly" ? weeklySales : monthlySales;
+  // Calculate dynamic real-time sales data from database orders for the current week
+  const calculateWeeklySales = (ordersList) => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const salesMap = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 };
+
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const distanceToMonday = (dayOfWeek + 6) % 7;
+
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - distanceToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    (ordersList || []).forEach((o) => {
+      if (o.status?.toUpperCase() === 'CANCELLED') return;
+      const orderDate = new Date(o.createdAt);
+      if (!isNaN(orderDate.getTime()) && orderDate >= startOfWeek && orderDate <= endOfWeek) {
+        const dayIdx = (orderDate.getDay() + 6) % 7;
+        const dayName = days[dayIdx];
+        salesMap[dayName] += Number(o.total) || 0;
+      }
+    });
+
+    return days.map((d) => ({
+      name: d,
+      value: Number(salesMap[d].toFixed(2)),
+    }));
+  };
+
+  const calculateMonthlySales = (ordersList) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const salesMap = Array(12).fill(0);
+
+    (ordersList || []).forEach((o) => {
+      if (o.status?.toUpperCase() === 'CANCELLED') return;
+      const orderDate = new Date(o.createdAt);
+      if (!isNaN(orderDate.getTime())) {
+        const monthIdx = orderDate.getMonth();
+        salesMap[monthIdx] += Number(o.total) || 0;
+      }
+    });
+
+    return months.map((m, idx) => ({
+      name: m,
+      value: Number(salesMap[idx].toFixed(2)),
+    }));
+  };
+
+  const calculateCategoryRevenue = (ordersList, productsList) => {
+    const parsePrice = (val) => {
+      if (typeof val === 'number') return isNaN(val) ? 0 : val;
+      if (typeof val === 'string') {
+        const cleaned = val.replace(/[^0-9.]/g, '');
+        return parseFloat(cleaned) || 0;
+      }
+      return 0;
+    };
+
+    const prodCatMap = {};
+    (productsList || []).forEach((p) => {
+      const catName = typeof p.category === 'object' ? p.category?.name : p.category;
+      if (catName) {
+        if (p.id) prodCatMap[p.id] = catName;
+        if (p.name) prodCatMap[p.name.trim().toLowerCase()] = catName;
+      }
+    });
+
+    const categoryMap = {};
+
+    (ordersList || []).forEach((o) => {
+      if (o.status?.toUpperCase() === 'CANCELLED') return;
+
+      let items = o.items;
+      if (typeof items === 'string') {
+        try {
+          items = JSON.parse(items);
+        } catch (e) {
+          items = [];
+        }
+      }
+
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach((item) => {
+          let cat = item.category;
+          if (typeof cat === 'object' && cat !== null) {
+            cat = cat.name;
+          }
+          if (!cat) {
+            cat = prodCatMap[item.id] || prodCatMap[item.productId] || (item.name ? prodCatMap[item.name.trim().toLowerCase()] : null);
+          }
+          if (!cat) {
+            const nameLower = (item.name || '').toLowerCase();
+            if (nameLower.includes('milk') || nameLower.includes('yoghurt') || nameLower.includes('butter') || nameLower.includes('cheese') || nameLower.includes('dairy')) cat = 'Dairy';
+            else if (nameLower.includes('rice') || nameLower.includes('sugar') || nameLower.includes('flour') || nameLower.includes('staple')) cat = 'Staples';
+            else if (nameLower.includes('chicken') || nameLower.includes('meat') || nameLower.includes('beef') || nameLower.includes('fish') || nameLower.includes('egg')) cat = 'Meat';
+            else if (nameLower.includes('cola') || nameLower.includes('pepsi') || nameLower.includes('water') || nameLower.includes('tea') || nameLower.includes('coffee') || nameLower.includes('beverage') || nameLower.includes('drink')) cat = 'Beverages';
+            else if (nameLower.includes('apple') || nameLower.includes('banana') || nameLower.includes('fruit') || nameLower.includes('mango')) cat = 'Fruits';
+            else if (nameLower.includes('potato') || nameLower.includes('onion') || nameLower.includes('tomato') || nameLower.includes('vegetable')) cat = 'Vegetables';
+            else if (nameLower.includes('soap') || nameLower.includes('detergent') || nameLower.includes('cleaner')) cat = 'Household';
+            else if (nameLower.includes('biscuit') || nameLower.includes('cracker') || nameLower.includes('bread') || nameLower.includes('cake') || nameLower.includes('chocolate')) cat = 'Bakery';
+            else cat = 'Other';
+          }
+
+          const qty = Number(item.quantity) || 1;
+          const price = parsePrice(item.price);
+          const itemTotal = price > 0 ? qty * price : parsePrice(item.total);
+
+          if (itemTotal > 0) {
+            categoryMap[cat] = (categoryMap[cat] || 0) + itemTotal;
+          }
+        });
+      }
+    });
+
+    const totalRev = Object.values(categoryMap).reduce((sum, v) => sum + (Number(v) || 0), 0);
+
+    const result = Object.keys(categoryMap)
+      .map((catName) => ({
+        name: catName,
+        value: totalRev > 0 ? Number(((categoryMap[catName] / totalRev) * 100).toFixed(2)) : 0,
+        amount: Number(categoryMap[catName].toFixed(2)),
+      }))
+      .filter((c) => c.value > 0);
+
+    if (result.length === 0) {
+      return [
+        { name: 'Fruits', value: 15 },
+        { name: 'Vegetables', value: 18 },
+        { name: 'Dairy', value: 22 },
+        { name: 'Bakery', value: 10 },
+        { name: 'Meat', value: 12 },
+        { name: 'Beverages', value: 8 },
+        { name: 'Staples', value: 10 },
+        { name: 'Household', value: 5 },
+      ];
+    }
+
+    return result;
+  };
+
+  const dynamicWeeklySales = calculateWeeklySales(dbOrders);
+  const dynamicMonthlySales = calculateMonthlySales(dbOrders);
+  const chartData = range === "weekly" ? dynamicWeeklySales : dynamicMonthlySales;
+  const dynamicCategoryRevenue = calculateCategoryRevenue(dbOrders, dbProducts);
 
   // Real recent orders mapping
   const recent = dbOrders.slice(0, 8).map((order) => {
@@ -144,7 +298,7 @@ function AdminDashboard({ onSignOut }) {
     },
     { 
       label: "PENDING", 
-      value: loading ? "..." : dbOrders.filter(o => o.status === "Pending" || o.status === "Placed" || o.status === "Processing").length.toLocaleString(), 
+      value: loading ? "..." : dbOrders.filter(o => o.status === "Pending" || o.status?.toUpperCase() === "PENDING").length.toLocaleString(), 
       icon: Clock, 
       color: "text-rose-600 bg-rose-50" 
     },
@@ -212,7 +366,7 @@ function AdminDashboard({ onSignOut }) {
               </div>
               <div className="mt-4 h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
                     <defs>
                       <linearGradient id="sales" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.45} />
@@ -235,11 +389,12 @@ function AdminDashboard({ onSignOut }) {
               <div className="mt-4 h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={categoryRevenue} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={3}>
-                      {categoryRevenue.map((_, i) => (
+                    <Pie data={dynamicCategoryRevenue} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={3}>
+                      {dynamicCategoryRevenue.map((_, i) => (
                         <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                       ))}
                     </Pie>
+                    <Tooltip formatter={(val) => `${Number(val).toFixed(2)}%`} contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", backgroundColor: "var(--card)", color: "var(--foreground)" }} />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../configs/prisma.js';
 import { generateGroceryRecipe, chatWithGroceryAI } from '../services/nvidiaAi.js';
-import { generateGroceryRecipeGemini } from '../services/geminiAi.js';
+import { generateGroceryRecipeGemini, chatWithGroceryGemini } from '../services/geminiAi.js';
 import { findBestProductMatch, StoreProductLike, baseUnit } from '../services/productMatcher.js';
 
 // Controller to handle AI Recipe Generation
@@ -87,8 +87,11 @@ export const generateRecipeController = async (req: Request, res: Response) => {
 
     const validatedIngredients = filterIrrelevantIngredients(recipeName, normalizedRaw);
 
+    // Step 2.5: Validate and sanitize ingredient quantities to realistic culinary proportions
+    const sanitizedIngredients = validateAndSanitizeIngredientQuantities(recipeName, numServings, validatedIngredients);
+
     // Step 3: Match each validated AI ingredient against the actual store products.
-    const mappedIngredients = validatedIngredients
+    const mappedIngredients = sanitizedIngredients
       .map((ing: any) => {
         // Authoritative path: fuzzy match the ingredient name against the store catalog.
         // The fuzzy matcher is unit-aware, so e.g. "Chicken" (kg) prefers "Fresh Chicken (1 kg)"
@@ -97,6 +100,12 @@ export const generateRecipeController = async (req: Request, res: Response) => {
         let matched = findBestProductMatch(ing.name, dbProducts as StoreProductLike[], ing.unit) || null;
         if (!matched && ing.id) {
           matched = dbProducts.find(p => p.id === ing.id) || null;
+        }
+
+        // Safety Guard: Verify matched store product is not incompatible with recipe
+        if (matched && isProductIncompatibleWithRecipe(recipeName, matched.name, matched.category?.name)) {
+          console.log(`[Product Matcher Guard] Rejected incompatible matched product "${matched.name}" for recipe "${recipeName}"`);
+          matched = null;
         }
 
         // Reconcile the AI's numeric quantity, unit and displayQuantity so that the
@@ -108,6 +117,7 @@ export const generateRecipeController = async (req: Request, res: Response) => {
           return {
             id: matched.id,
             name: matched.name,
+            recipeIngredient: ing.name,
             category: matched.category?.name || ing.category || "Grocery",
             price: matched.price,
             image: matched.image,
@@ -123,6 +133,7 @@ export const generateRecipeController = async (req: Request, res: Response) => {
         return {
           id: null,
           name: ing.name,
+          recipeIngredient: ing.name,
           category: ing.category || "Grocery",
           price: 0,
           image: null,
@@ -134,23 +145,33 @@ export const generateRecipeController = async (req: Request, res: Response) => {
         };
       });
 
-    // Deduplicate: the AI may return multiple ingredients that resolve to the same
-    // store product (e.g. "Milk" and "Fresh Milk" both -> the same milk product).
-    const seenIds = new Set<string>();
-    const seenNames = new Set<string>();
-    const uniqueIngredients: any[] = [];
+    // Intelligently combine duplicate ingredients: if multiple ingredients resolve
+    // to the same store product or same name, sum their quantities and preserve recipe display quantity.
+    const combinedMap = new Map<string, any>();
     for (const item of mappedIngredients) {
-      if (item.isDbMatched && item.id) {
-        if (seenIds.has(item.id)) continue;
-        seenIds.add(item.id);
-        uniqueIngredients.push(item);
+      const key = item.isDbMatched && item.id
+        ? `prod_${item.id}`
+        : `name_${String(item.name || "").trim().toLowerCase()}`;
+      if (!key || key === "name_") continue;
+
+      if (combinedMap.has(key)) {
+        const existing = combinedMap.get(key);
+        const mergedQty = clampQuantity(existing.quantity + item.quantity);
+        existing.quantity = mergedQty;
+
+        // Combine recipe display amounts if both have parsed amounts with the same unit
+        if (existing.displayQuantity && item.displayQuantity) {
+          const parsed1 = parseAmountFromDisplay(existing.displayQuantity);
+          const parsed2 = parseAmountFromDisplay(item.displayQuantity);
+          if (parsed1 && parsed2 && parsed1.unit === parsed2.unit) {
+            existing.displayQuantity = `${Math.round((parsed1.value + parsed2.value) * 100) / 100} ${parsed1.unit}`;
+          }
+        }
       } else {
-        const key = String(item.name || "").trim().toLowerCase();
-        if (!key || seenNames.has(key)) continue;
-        seenNames.add(key);
-        uniqueIngredients.push(item);
+        combinedMap.set(key, { ...item });
       }
     }
+    const uniqueIngredients = Array.from(combinedMap.values());
 
     if (uniqueIngredients.length === 0) {
       return res.status(502).json({
@@ -166,11 +187,27 @@ export const generateRecipeController = async (req: Request, res: Response) => {
       quantityValue: numServings,
       servings: numServings,
       ingredients: uniqueIngredients,
-      instructions: aiResult?.instructions || [
-        `Prepare all available ingredients for ${recipeName.trim()}.`,
-        `Cook thoroughly according to recipe proportions for ${numServings} ${qtyType}.`,
-        `Serve fresh and enjoy!`
-      ]
+      instructions: (() => {
+        if (Array.isArray(aiResult?.instructions) && aiResult.instructions.length > 0) {
+          const isDessert = isDessertOrBakeryRecipe((recipeName || "").toLowerCase().trim());
+          const cleaned = aiResult.instructions
+            .map((step: any) => String(step || "").trim())
+            .filter((step: string) => {
+              if (!step) return false;
+              const stepLower = step.toLowerCase();
+              if (!isDessert && (stepLower.includes("cocoa") || stepLower.includes("chocolate") || stepLower.includes("vanilla extract"))) {
+                return false;
+              }
+              return true;
+            });
+          if (cleaned.length > 0) return cleaned;
+        }
+        return [
+          `Prepare all available ingredients for ${recipeName.trim()}.`,
+          `Cook thoroughly according to recipe proportions for ${numServings} ${qtyType}.`,
+          `Serve fresh and enjoy!`
+        ];
+      })()
     });
   } catch (error: any) {
     console.error("AI Recipe Generation Controller Error:", error);
@@ -195,7 +232,18 @@ export const chatController = async (req: Request, res: Response) => {
       take: 30
     });
 
-    const reply = await chatWithGroceryAI(message.trim(), history || []);
+    let reply: string | null = null;
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        reply = await chatWithGroceryGemini(message.trim(), history || []);
+      } catch (geminiErr) {
+        console.warn("Gemini Chat failed, falling back to NVIDIA:", geminiErr);
+      }
+    }
+
+    if (!reply) {
+      reply = await chatWithGroceryAI(message.trim(), history || []);
+    }
 
     // Filter matched store products for interactive product cards
     const matchedProducts = dbProducts.filter(p =>
@@ -255,7 +303,7 @@ function clampQuantity(qty: number): number {
 
 function formatDisplayQuantity(ing: any): string {
   const q = clampQuantity(ing.quantity);
-  const u = (ing.unit && ing.unit.trim()) || "item";
+  const u = baseUnit(ing.unit) || (ing.unit && ing.unit.trim()) || "item";
   const lowerU = u.toLowerCase();
   if (lowerU === "g" && q >= 1000) return `${Math.round(q / 1000 * 100) / 100} kg`;
   if (lowerU === "kg" && q < 1) return `${Math.round(q * 1000)} g`;
@@ -280,11 +328,45 @@ function isMeasuredUnit(unit: string): boolean {
   return unit === "kg" || unit === "g" || unit === "ml" || unit === "l" || unit === "litre" || unit === "liter";
 }
 
+/**
+ * Normalizes purchasable quantity according to store purchasing policy:
+ * - Weight-based products: minimum 100 g (0.1 kg).
+ * - Liquid-based products: minimum 100 ml (0.1 L).
+ * - Piece/count-based products: minimum 1.
+ */
+export function normalizePurchasableQuantity(
+  rawQty: number,
+  productUnit?: string | null
+): number {
+  const prodBase = baseUnit(productUnit);
+  const qty = isNaN(rawQty) || rawQty <= 0 ? 0.1 : rawQty;
+
+  if (prodBase === "kg") {
+    // Stored in kg: minimum 0.1 kg (100 g)
+    return Math.max(0.1, Math.round(qty * 100) / 100);
+  }
+  if (prodBase === "g") {
+    // Stored in g: minimum 100 g
+    return Math.max(100, Math.round(qty));
+  }
+  if (prodBase === "l" || prodBase === "liter" || prodBase === "litre") {
+    // Stored in L: minimum 0.1 L (100 ml)
+    return Math.max(0.1, Math.round(qty * 100) / 100);
+  }
+  if (prodBase === "ml") {
+    // Stored in ml: minimum 100 ml
+    return Math.max(100, Math.round(qty));
+  }
+
+  // Countable/piece products: minimum 1
+  return Math.max(1, Math.round(qty));
+}
+
 // Resolves a single AI ingredient's numeric quantity, display quantity and unit.
 // The numeric quantity is expressed in the store product's sale unit so the cart
 // quantity matches the display. Policy:
-//  - Product sold by weight/volume + requirement in kg/g/L/ml -> exact kg/L amount.
-//  - Product sold by weight/volume + requirement in pcs/tsp/cups -> minimum one store unit.
+//  - Product sold by weight/volume + requirement in kg/g/L/ml -> exact kg/L amount (normalized to store minimums).
+//  - Product sold by weight/volume + requirement in pcs/tsp/cups -> scaled kg/L amount (normalized to store minimums).
 //  - Product sold by count (pcs/pack/bunch) -> the required count.
 function resolveQuantityAndDisplay(
   ing: any,
@@ -311,8 +393,31 @@ function resolveQuantityAndDisplay(
       if (prodBase === "g") quantity = quantity * 1000;
       else if (prodBase === "ml") quantity = quantity * 1000;
     } else if (prodMeasured) {
-      // e.g. "2.5 tsp" of a spice that the store sells per kg -> minimum one store unit.
-      quantity = 1;
+      if (parsed.unit === "tsp") {
+        quantity = (parsed.value * 5) / 1000;
+      } else if (parsed.unit === "tbsp") {
+        quantity = (parsed.value * 15) / 1000;
+      } else if (parsed.unit === "cloves" || parsed.unit === "clove") {
+        quantity = (parsed.value * 5) / 1000;
+      } else {
+        const approxMatch = /approx\.?\s*(\d+(?:[.,]\d+)?)\s*g/i.exec(displayQuantity);
+        if (approxMatch) {
+          const approxG = parseFloat(approxMatch[1].replace(",", "."));
+          quantity = approxG / 1000;
+        } else {
+          // If piece/count item sold by weight in store:
+          const ingNameLower = String(ing.name || "").toLowerCase();
+          if (ingNameLower.includes("chili") || ingNameLower.includes("chilli")) {
+            quantity = (parsed.value * 5) / 1000; // ~40g for 8 pcs -> normalizes to 0.1 kg (100 g)
+          } else if (ingNameLower.includes("garlic")) {
+            quantity = (parsed.value * 5) / 1000;
+          } else {
+            quantity = (parsed.value * 100) / 1000;
+          }
+        }
+      }
+      if (prodBase === "g") quantity = quantity * 1000;
+      else if (prodBase === "ml") quantity = quantity * 1000;
     } else {
       quantity = parsed.value;
     }
@@ -324,11 +429,263 @@ function resolveQuantityAndDisplay(
     if (prodBase === "ml") quantity = quantity * 1000;
   }
 
+  // Normalize according to store minimum purchasing rules (100g weight / 100ml liquid / 1 piece)
+  const normalizedQuantity = normalizePurchasableQuantity(quantity, productUnit);
+
+  const ingNameLower = String(ing.name || "").toLowerCase().trim();
+  const isCarbOrNoodle =
+    ingNameLower.includes("noodle") ||
+    ingNameLower.includes("pasta") ||
+    ingNameLower.includes("spaghetti") ||
+    ingNameLower.includes("macaroni") ||
+    ingNameLower.includes("roll");
+
+  const isEgg =
+    !isCarbOrNoodle &&
+    !ingNameLower.includes("eggplant") &&
+    (ingNameLower === "egg" ||
+      ingNameLower === "eggs" ||
+      ingNameLower === "red egg" ||
+      ingNameLower === "red eggs" ||
+      ingNameLower === "white egg" ||
+      ingNameLower === "white eggs" ||
+      ingNameLower === "chicken egg" ||
+      ingNameLower === "chicken eggs" ||
+      ingNameLower === "brown egg" ||
+      ingNameLower === "brown eggs" ||
+      ingNameLower === "fresh egg" ||
+      ingNameLower === "fresh eggs" ||
+      ingNameLower === "raw egg" ||
+      ingNameLower === "raw eggs" ||
+      ingNameLower === "boiled egg" ||
+      ingNameLower === "boiled eggs");
+
+  if (isEgg) {
+    const finalEggQty = Math.max(1, Math.round(normalizedQuantity));
+    return {
+      quantity: finalEggQty,
+      displayQuantity: `${finalEggQty} pcs`,
+      unit: "pcs",
+    };
+  }
+
   return {
-    quantity: clampQuantity(quantity),
+    quantity: clampQuantity(normalizedQuantity),
     displayQuantity,
     unit: ingUnit || "item",
   };
+}
+
+/**
+ * Validates and sanitizes AI-generated ingredient quantities to guarantee realistic,
+ * culinary-accurate scaling and prevent absurd values (e.g. 2 kg of chilli powder for 10 people).
+ */
+export function validateAndSanitizeIngredientQuantities(
+  recipeName: string,
+  numServings: number,
+  ingredients: any[]
+): any[] {
+  const servings = Math.max(1, isNaN(numServings) ? 1 : numServings);
+  const normRecipe = (recipeName || "").toLowerCase().trim();
+
+  return ingredients.map((ing) => {
+    if (!ing || !ing.name) return ing;
+    let name = String(ing.name).trim();
+    let nameLower = name.toLowerCase();
+    let qty = typeof ing.quantity === "number" && isFinite(ing.quantity) ? ing.quantity : parseFloat(String(ing.quantity)) || 1;
+    let unit = (typeof ing.unit === "string" ? ing.unit.trim() : "g").toLowerCase();
+    let display = (typeof ing.displayQuantity === "string" ? ing.displayQuantity.trim() : "");
+
+    // 0. Eggs (CRITICAL: MUST ALWAYS be in 'pcs', never 'kg', 'g', or other weight units)
+    const isNoodleOrCarb =
+      nameLower.includes("noodle") ||
+      nameLower.includes("pasta") ||
+      nameLower.includes("spaghetti") ||
+      nameLower.includes("macaroni") ||
+      nameLower.includes("roll");
+
+    const isEgg =
+      !isNoodleOrCarb &&
+      !nameLower.includes("eggplant") &&
+      (nameLower === "egg" ||
+        nameLower === "eggs" ||
+        nameLower === "red egg" ||
+        nameLower === "red eggs" ||
+        nameLower === "white egg" ||
+        nameLower === "white eggs" ||
+        nameLower === "chicken egg" ||
+        nameLower === "chicken eggs" ||
+        nameLower === "brown egg" ||
+        nameLower === "brown eggs" ||
+        nameLower === "fresh egg" ||
+        nameLower === "fresh eggs" ||
+        nameLower === "farm egg" ||
+        nameLower === "farm eggs" ||
+        nameLower === "raw egg" ||
+        nameLower === "raw eggs" ||
+        nameLower === "boiled egg" ||
+        nameLower === "boiled eggs");
+
+    if (isEgg) {
+      if (nameLower === "eggs") {
+        name = "Egg";
+      }
+      let eggCount: number;
+      if (unit === "kg" || unit === "kgs" || unit === "kilo" || unit === "g" || unit === "grams") {
+        // Correct impossible weight unit for eggs to realistic count based on servings (e.g. 10 people = 10 pcs)
+        eggCount = Math.max(1, Math.round(servings * 1.0));
+        console.log(`[Quantity Sanitizer] Corrected impossible egg weight (${qty} ${unit}) for "${name}" (${servings} servings) to ${eggCount} pcs`);
+      } else if (unit === "pcs" || unit === "pc" || unit === "piece" || unit === "pieces" || unit === "item") {
+        if (servings >= 4 && qty < servings * 0.5) {
+          eggCount = Math.max(1, Math.round(servings * 1.0));
+          console.log(`[Quantity Sanitizer] Corrected unrealistic egg count (${qty} pcs) for "${name}" (${servings} servings) to ${eggCount} pcs`);
+        } else {
+          eggCount = Math.max(1, Math.round(qty));
+        }
+      } else {
+        eggCount = Math.max(1, Math.round(servings * 1.0));
+      }
+
+      qty = eggCount;
+      unit = "pcs";
+      display = `${eggCount} pcs`;
+
+      return {
+        ...ing,
+        name,
+        quantity: qty,
+        unit,
+        displayQuantity: display,
+      };
+    }
+
+    // 1. Spices & Seasonings (Red Chili Powder, Turmeric, Masalas, Salt, etc.)
+    const isChiliPowder =
+      nameLower.includes("chili powder") ||
+      nameLower.includes("chilli powder") ||
+      nameLower.includes("chile powder") ||
+      nameLower.includes("crushed chili") ||
+      nameLower.includes("chilli flakes") ||
+      nameLower.includes("chili flakes") ||
+      ((nameLower.includes("red chili") || nameLower.includes("red chilli")) && !nameLower.includes("fresh") && !nameLower.includes("sauce"));
+
+    const isGeneralSpice =
+      isChiliPowder ||
+      nameLower.includes("turmeric") ||
+      nameLower.includes("curry powder") ||
+      nameLower.includes("garam masala") ||
+      nameLower.includes("biryani masala") ||
+      nameLower.includes("coriander powder") ||
+      nameLower.includes("cumin powder") ||
+      nameLower.includes("cumin seed") ||
+      nameLower.includes("black pepper") ||
+      nameLower.includes("white pepper") ||
+      nameLower.includes("paprika") ||
+      nameLower.includes("fenugreek") ||
+      nameLower.includes("cardamom") ||
+      nameLower.includes("cinnamon") ||
+      nameLower.includes("clove") ||
+      nameLower.includes("nutmeg") ||
+      nameLower.includes("saffron") ||
+      nameLower.includes("salt");
+
+    if (isChiliPowder) {
+      // For 10 people biryani/curry: 40-70g (standard catering target: ~55g total, or ~5.5g per serving)
+      const targetGrams = Math.round(servings * 5.5);
+
+      if (unit === "kg" || unit === "kgs" || unit === "kilo" || unit === "l" || unit === "liter" || unit === "litre") {
+        console.log(`[Quantity Sanitizer] Corrected impossible spice unit (${qty} ${unit}) for "${name}" (${servings} servings) to ${targetGrams} g`);
+        qty = targetGrams;
+        unit = "g";
+        display = `${targetGrams} g`;
+      } else if (unit === "g") {
+        if (qty > servings * 14 || qty > 160) {
+          console.log(`[Quantity Sanitizer] Corrected unrealistic spice quantity (${qty} g) for "${name}" (${servings} servings) to ${targetGrams} g`);
+          qty = targetGrams;
+          display = `${targetGrams} g`;
+        }
+      } else if (unit === "tbsp" || unit === "tsp") {
+        const maxTbsp = Math.max(3, servings * 0.8);
+        if (unit === "tbsp" && qty > maxTbsp) {
+          qty = Math.round(servings * 0.4 * 10) / 10;
+          display = `${qty} tbsp`;
+        }
+      }
+    } else if (isGeneralSpice) {
+      // Ground spices & salt: unit MUST NEVER be kg
+      if (unit === "kg" || unit === "kgs" || unit === "kilo" || unit === "l" || unit === "liter" || unit === "litre") {
+        const targetGrams = nameLower.includes("salt") ? Math.round(servings * 3.5) : Math.round(servings * 2);
+        console.log(`[Quantity Sanitizer] Corrected impossible unit for spice/salt "${name}" to ${targetGrams} g`);
+        qty = targetGrams;
+        unit = "g";
+        display = `${targetGrams} g`;
+      } else if (unit === "g") {
+        const maxGrams = nameLower.includes("salt") ? servings * 10 : servings * 8;
+        if (qty > maxGrams && qty > 80) {
+          const targetGrams = nameLower.includes("salt") ? Math.round(servings * 3.5) : Math.round(servings * 2);
+          qty = targetGrams;
+          display = `${targetGrams} g`;
+        }
+      }
+    }
+
+    // 2. Fresh Green Chilies / Fresh Red Chilies (Produce)
+    const isFreshChili = (nameLower.includes("green chili") || nameLower.includes("green chilli") || nameLower.includes("fresh chili")) && !isChiliPowder;
+    if (isFreshChili) {
+      if (unit === "kg" || unit === "kgs" || (unit === "g" && qty > servings * 25 && qty > 80)) {
+        const pcs = Math.max(2, Math.round(servings * 0.7)); // 10 people = 7 pcs
+        const grams = pcs * 6; // approx 40-50g
+        console.log(`[Quantity Sanitizer] Corrected fresh chili quantity for "${name}" to ${pcs} pcs (approx. ${grams} g)`);
+        qty = pcs;
+        unit = "pcs";
+        display = `${pcs} pcs (approx. ${grams} g)`;
+      }
+    }
+
+    // 3. Garlic & Ginger
+    if (nameLower.includes("garlic") && !nameLower.includes("powder") && !nameLower.includes("bread")) {
+      if (unit === "kg" || (unit === "g" && qty > servings * 20 && qty > 80)) {
+        const cloves = Math.max(3, Math.round(servings * 1.0)); // 10 people = 10 cloves (~50g)
+        qty = cloves;
+        unit = "cloves";
+        display = `${cloves} cloves (approx. ${cloves * 5} g)`;
+      }
+    }
+    if (nameLower.includes("ginger") && !nameLower.includes("powder") && !nameLower.includes("beer")) {
+      if (unit === "kg" || (unit === "g" && qty > servings * 15 && qty > 80)) {
+        const grams = Math.max(10, Math.round(servings * 4)); // 10 people = 40g
+        qty = grams;
+        unit = "g";
+        display = `${grams} g`;
+      }
+    }
+
+    // 4. Rice / Grains (when cooked in recipe e.g. Biryani)
+    if (nameLower.includes("rice") && (normRecipe.includes("biryani") || normRecipe.includes("briyani") || normRecipe.includes("fried rice") || normRecipe.includes("pulao"))) {
+      if (unit === "kg" && qty > servings * 0.25) {
+        const targetKg = Math.round(servings * 0.11 * 10) / 10; // ~1.1 kg for 10 people
+        qty = targetKg;
+        display = `${targetKg} kg`;
+      }
+    }
+
+    // 5. Meat / Chicken / Protein
+    if ((nameLower.includes("chicken") || nameLower.includes("beef") || nameLower.includes("mutton") || nameLower.includes("fish")) && !nameLower.includes("sauce") && !nameLower.includes("cube")) {
+      if (unit === "kg" && qty > servings * 0.35) {
+        const targetKg = Math.round(servings * 0.17 * 10) / 10; // ~1.7 kg for 10 people
+        qty = targetKg;
+        display = `${targetKg} kg`;
+      }
+    }
+
+    return {
+      ...ing,
+      name,
+      quantity: qty,
+      unit,
+      displayQuantity: display || `${qty} ${unit}`,
+    };
+  });
 }
 
 const STAPLE_CARB_RULES: Array<{
@@ -352,26 +709,236 @@ const STAPLE_CARB_RULES: Array<{
     }
   ];
 
+export function isDessertOrBakeryRecipe(normRecipe: string): boolean {
+  return (
+    normRecipe.includes("cake") ||
+    normRecipe.includes("cookie") ||
+    normRecipe.includes("brownie") ||
+    normRecipe.includes("pancake") ||
+    normRecipe.includes("waffle") ||
+    normRecipe.includes("pastry") ||
+    normRecipe.includes("muffin") ||
+    normRecipe.includes("cupcake") ||
+    normRecipe.includes("pudding") ||
+    normRecipe.includes("custard") ||
+    normRecipe.includes("dessert") ||
+    normRecipe.includes("donut") ||
+    normRecipe.includes("doughnut") ||
+    normRecipe.includes("tart") ||
+    normRecipe.includes("pie") ||
+    normRecipe.includes("sweet") ||
+    normRecipe.includes("halwa") ||
+    normRecipe.includes("payasam") ||
+    normRecipe.includes("kheer") ||
+    normRecipe.includes("gulab jamun") ||
+    normRecipe.includes("ice cream") ||
+    normRecipe.includes("chocolate")
+  );
+}
+
+export function isBiryaniRecipe(normRecipe: string): boolean {
+  return (
+    normRecipe.includes("biryani") ||
+    normRecipe.includes("biriyani") ||
+    normRecipe.includes("briyani")
+  );
+}
+
+// Ingredients exclusively used in sweet baking, desserts, or confectionery.
+// Strictly forbidden in savory main dishes (Biryani, Curries, Noodles, Fried Rice, Soups, etc.).
+const DESSERT_AND_BAKING_TERMS = [
+  "cocoa powder", "cocoa", "cacao", "chocolate", "chocolate chip", "chocolate chips", "chocolate syrup",
+  "vanilla extract", "vanilla essence", "vanilla pod", "vanilla", "strawberry essence",
+  "custard powder", "jelly powder", "gelatin", "marshmallow", "marshmallows",
+  "icing sugar", "powdered sugar", "frosting", "sprinkles",
+  "cake mix", "brownie mix", "cookie dough"
+];
+
+// Condiments and sauces unrelated to authentic Biryani preparation
+const BIRYANI_UNRELATED_CONDIMENTS = [
+  "soy sauce", "oyster sauce", "fish sauce", "barbecue sauce", "bbq sauce",
+  "mayonnaise", "ketchup", "tomato ketchup", "mustard sauce", "mustard paste",
+  "pasta sauce", "pizza sauce", "marinara sauce", "tartar sauce"
+];
+
+// Starches unrelated to Biryani (which inherently uses rice)
+const BIRYANI_UNRELATED_GRAINS = [
+  "noodle", "noodles", "pasta", "spaghetti", "macaroni", "lasagna", "ramen",
+  "chow mein", "vermicelli", "oats", "rolled oats"
+];
+
 export function filterIrrelevantIngredients(recipeName: string, ingredients: any[]): any[] {
   const normRecipe = (recipeName || "").toLowerCase().trim();
+  const isBiryani = isBiryaniRecipe(normRecipe);
+  const isDessert = isDessertOrBakeryRecipe(normRecipe);
+
+  // Variant flags for Biryani protein consistency
+  const isVegBiryani = isBiryani && (normRecipe.includes("veg") || normRecipe.includes("paneer") || normRecipe.includes("mushroom"));
+  const isChickenBiryani = isBiryani && normRecipe.includes("chicken");
+  const isMuttonBiryani = isBiryani && (normRecipe.includes("mutton") || normRecipe.includes("lamb") || normRecipe.includes("goat"));
+  const isBeefBiryani = isBiryani && normRecipe.includes("beef");
+  const isFishBiryani = isBiryani && normRecipe.includes("fish");
+  const isPrawnBiryani = isBiryani && (normRecipe.includes("prawn") || normRecipe.includes("shrimp"));
 
   return ingredients.filter((ing) => {
     if (!ing || !ing.name) return false;
     const ingNameLower = String(ing.name).toLowerCase().trim();
 
+    // 1. Check side-dish staple carbs (e.g. side bread / side rice for curry)
     for (const rule of STAPLE_CARB_RULES) {
       const isStapleCarb = rule.keywords.some((kw) => ingNameLower === kw || ingNameLower.includes(kw));
       if (isStapleCarb) {
-        // Check if recipe name explicitly requires/contains this staple carb
         const isRecipeAllowed = rule.allowedRecipeTerms.some((term) => normRecipe.includes(term));
         if (!isRecipeAllowed) {
-          console.log(`[Validation Filter] Removed irrelevant side-dish ingredient "${ing.name}" from recipe "${recipeName}"`);
+          console.log(`[Validation Filter] Removed irrelevant side-dish staple "${ing.name}" from recipe "${recipeName}"`);
           return false;
         }
       }
     }
+
+    // 2. Prevent confectionery, sweet baking, and dessert items in savory recipes
+    if (!isDessert) {
+      const isDessertIngredient = DESSERT_AND_BAKING_TERMS.some((term) =>
+        ingNameLower === term || ingNameLower.includes(term)
+      );
+      if (isDessertIngredient) {
+        console.log(`[Validation Filter] Removed incompatible dessert/baking ingredient "${ing.name}" from savory recipe "${recipeName}"`);
+        return false;
+      }
+
+      // Leaveners like baking powder/soda are not used in Biryani, curries, or rice
+      if (isBiryani || normRecipe.includes("curry") || normRecipe.includes("rice")) {
+        if (ingNameLower.includes("baking powder") || ingNameLower.includes("baking soda") || ingNameLower === "yeast") {
+          console.log(`[Validation Filter] Removed baking leavener "${ing.name}" from recipe "${recipeName}"`);
+          return false;
+        }
+      }
+    }
+
+    // 3. Strict Biryani culinary relevance rules
+    if (isBiryani) {
+      // 3a. Incompatible grains and noodles
+      if (BIRYANI_UNRELATED_GRAINS.some((g) => ingNameLower === g || ingNameLower.includes(g))) {
+        console.log(`[Validation Filter] Removed incompatible carb "${ing.name}" from Biryani recipe "${recipeName}"`);
+        return false;
+      }
+
+      // 3b. Incompatible condiments
+      if (BIRYANI_UNRELATED_CONDIMENTS.some((c) => ingNameLower === c || ingNameLower.includes(c))) {
+        console.log(`[Validation Filter] Removed unrelated condiment "${ing.name}" from Biryani recipe "${recipeName}"`);
+        return false;
+      }
+
+      // 3c. Protein specificity for Biryani
+      if (isVegBiryani) {
+        const meatTerms = ["chicken", "beef", "mutton", "lamb", "goat", "pork", "fish", "prawn", "shrimp", "seafood", "crab", "squid", "bacon", "ham", "sausage"];
+        if (meatTerms.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed non-veg ingredient "${ing.name}" from Vegetarian Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isChickenBiryani) {
+        const competingProteins = ["mutton", "lamb", "goat", "beef", "pork", "fish", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Chicken Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isMuttonBiryani) {
+        const competingProteins = ["chicken", "beef", "pork", "fish", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Mutton Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isBeefBiryani) {
+        const competingProteins = ["chicken", "mutton", "lamb", "goat", "pork", "fish", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Beef Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isFishBiryani) {
+        const competingProteins = ["chicken", "beef", "mutton", "lamb", "goat", "pork", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing meat/seafood "${ing.name}" from Fish Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isPrawnBiryani) {
+        const competingProteins = ["chicken", "beef", "mutton", "lamb", "goat", "pork", "fish"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Prawn Biryani "${recipeName}"`);
+          return false;
+        }
+      }
+    }
+
     return true;
   });
+}
+
+/**
+ * Validates whether a matched store product is culinary-compatible with the recipe.
+ * Prevents store catalog mismatches (e.g. Cocoa Powder matching a Biryani spice)
+ * from ever being attached to the grocery list.
+ */
+export function isProductIncompatibleWithRecipe(
+  recipeName: string,
+  productName: string,
+  categoryName?: string | null
+): boolean {
+  const normRecipe = (recipeName || "").toLowerCase().trim();
+  const prodLower = (productName || "").toLowerCase().trim();
+  const catLower = (categoryName || "").toLowerCase().trim();
+
+  const isDessert = isDessertOrBakeryRecipe(normRecipe);
+  const isBiryani = isBiryaniRecipe(normRecipe);
+
+  if (!isDessert) {
+    // Savory recipes must never match sweet dessert / baking products
+    if (
+      prodLower.includes("cocoa") ||
+      prodLower.includes("chocolate") ||
+      prodLower.includes("custard powder") ||
+      prodLower.includes("jelly") ||
+      prodLower.includes("marshmallow") ||
+      prodLower.includes("vanilla extract") ||
+      prodLower.includes("vanilla essence")
+    ) {
+      return true;
+    }
+
+    if (isBiryani && catLower.includes("baking") && (prodLower.includes("powder") || prodLower.includes("extract"))) {
+      return true;
+    }
+  }
+
+  if (isBiryani) {
+    if (
+      prodLower.includes("pasta") ||
+      prodLower.includes("noodle") ||
+      prodLower.includes("macaroni") ||
+      prodLower.includes("spaghetti") ||
+      prodLower.includes("mayonnaise") ||
+      prodLower.includes("soy sauce")
+    ) {
+      return true;
+    }
+
+    // Protein check on matched store product for Biryani
+    const isVegBiryani = normRecipe.includes("veg") || normRecipe.includes("paneer");
+    const isChickenBiryani = normRecipe.includes("chicken");
+    const isMuttonBiryani = normRecipe.includes("mutton") || normRecipe.includes("lamb");
+    const isBeefBiryani = normRecipe.includes("beef");
+    const isFishBiryani = normRecipe.includes("fish");
+    const isPrawnBiryani = normRecipe.includes("prawn") || normRecipe.includes("shrimp");
+
+    const allMeatTerms = ["chicken", "beef", "mutton", "lamb", "pork", "fish", "prawn", "shrimp"];
+    if (isVegBiryani && allMeatTerms.some((t) => prodLower.includes(t))) return true;
+    if (isChickenBiryani && ["mutton", "beef", "pork", "fish", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isMuttonBiryani && ["chicken", "beef", "pork", "fish", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isBeefBiryani && ["chicken", "mutton", "pork", "fish", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isFishBiryani && ["chicken", "beef", "mutton", "pork", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isPrawnBiryani && ["chicken", "beef", "mutton", "pork"].some((t) => prodLower.includes(t))) return true;
+  }
+
+  return false;
 }
 
 let isRecipeHistoryTableChecked = false;
@@ -385,19 +952,44 @@ async function ensureRecipeHistoryTable() {
         "recipeName" TEXT NOT NULL,
         "quantityType" TEXT NOT NULL,
         "quantityValue" TEXT NOT NULL,
+        "ingredients" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "RecipeHistory_pkey" PRIMARY KEY ("id"),
         CONSTRAINT "RecipeHistory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
       );
     `);
+  } catch (tableErr) {
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "RecipeHistory" (
+          "id" TEXT NOT NULL,
+          "userId" TEXT NOT NULL,
+          "recipeName" TEXT NOT NULL,
+          "quantityType" TEXT NOT NULL,
+          "quantityValue" TEXT NOT NULL,
+          "ingredients" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "RecipeHistory_pkey" PRIMARY KEY ("id")
+        );
+      `);
+    } catch { }
+  }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "RecipeHistory" ADD COLUMN IF NOT EXISTS "ingredients" TEXT;
+    `);
+  } catch { }
+
+  try {
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "RecipeHistory_userId_idx" ON "RecipeHistory"("userId");
     `);
-    isRecipeHistoryTableChecked = true;
-  } catch (err) {
-    console.error("Error ensuring RecipeHistory table exists:", err);
-  }
+  } catch { }
+
+  isRecipeHistoryTableChecked = true;
 }
 
 // Controller to fetch user's recipe history (User isolated)
@@ -409,20 +1001,56 @@ export const getRecipeHistoryController = async (req: Request & { userId?: strin
 
     await ensureRecipeHistoryTable();
 
-    const history = await (prisma as any).recipeHistory.findMany({
-      where: { userId: req.userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    let history: any[] = [];
+    try {
+      history = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id", "userId", "recipeName", "quantityType", "quantityValue", "ingredients", "createdAt", "updatedAt"
+         FROM "RecipeHistory"
+         WHERE "userId" = $1
+         ORDER BY "createdAt" DESC`,
+        req.userId
+      );
+    } catch {
+      try {
+        history = await prisma.$queryRawUnsafe<any[]>(
+          `SELECT "id", "userId", "recipeName", "quantityType", "quantityValue", "createdAt", "updatedAt"
+           FROM "RecipeHistory"
+           WHERE "userId" = $1
+           ORDER BY "createdAt" DESC`,
+          req.userId
+        );
+      } catch {
+        try {
+          history = await (prisma as any).recipeHistory.findMany({
+            where: { userId: req.userId },
+            orderBy: { createdAt: 'desc' },
+          });
+        } catch {
+          history = [];
+        }
+      }
+    }
 
     return res.json({
       success: true,
-      history: history.map((h: any) => ({
-        id: h.id,
-        recipeName: h.recipeName,
-        quantityType: h.quantityType,
-        quantityValue: h.quantityValue,
-        timestamp: new Date(h.createdAt).getTime(),
-      })),
+      history: (history || []).map((h: any) => {
+        let parsedIngredients: any[] = [];
+        if (h.ingredients) {
+          try {
+            parsedIngredients = typeof h.ingredients === 'string' ? JSON.parse(h.ingredients) : h.ingredients;
+          } catch {
+            parsedIngredients = [];
+          }
+        }
+        return {
+          id: h.id,
+          recipeName: h.recipeName,
+          quantityType: h.quantityType,
+          quantityValue: h.quantityValue,
+          ingredients: parsedIngredients,
+          timestamp: new Date(h.createdAt || h.createdat || Date.now()).getTime(),
+        };
+      }),
     });
   } catch (error: any) {
     console.error("Error fetching recipe history:", error);
@@ -437,7 +1065,7 @@ export const createRecipeHistoryController = async (req: Request & { userId?: st
       return res.status(401).json({ success: false, message: "Unauthorized. User ID missing." });
     }
 
-    const { recipeName, quantityType, quantityValue } = req.body;
+    const { recipeName, quantityType, quantityValue, ingredients } = req.body;
     if (!recipeName || !recipeName.trim() || !quantityValue || !String(quantityValue).trim()) {
       return res.status(400).json({ success: false, message: "Recipe name and quantity value are required." });
     }
@@ -447,38 +1075,124 @@ export const createRecipeHistoryController = async (req: Request & { userId?: st
     const recipeNameStr = recipeName.trim();
     const quantityTypeStr = (quantityType || "People").trim();
     const quantityValueStr = String(quantityValue).trim();
+    const ingredientsJson = ingredients ? (typeof ingredients === 'string' ? ingredients : JSON.stringify(ingredients)) : null;
 
     // Delete existing duplicate for this user if any
     try {
-      await (prisma as any).recipeHistory.deleteMany({
-        where: {
-          userId: req.userId,
-          recipeName: { equals: recipeNameStr, mode: 'insensitive' },
-          quantityType: quantityTypeStr,
-          quantityValue: quantityValueStr,
-        },
-      });
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "RecipeHistory"
+         WHERE "userId" = $1
+           AND LOWER("recipeName") = LOWER($2)
+           AND "quantityType" = $3
+           AND "quantityValue" = $4`,
+        req.userId,
+        recipeNameStr,
+        quantityTypeStr,
+        quantityValueStr
+      );
     } catch {
-      // Ignore if deletion fails
+      try {
+        await (prisma as any).recipeHistory.deleteMany({
+          where: {
+            userId: req.userId,
+            recipeName: { equals: recipeNameStr, mode: 'insensitive' },
+            quantityType: quantityTypeStr,
+            quantityValue: quantityValueStr,
+          },
+        });
+      } catch {
+        // Ignore if deletion fails
+      }
     }
 
-    const newHistory = await (prisma as any).recipeHistory.create({
-      data: {
-        userId: req.userId,
-        recipeName: recipeNameStr,
-        quantityType: quantityTypeStr,
-        quantityValue: quantityValueStr,
-      },
-    });
+    const historyId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    let inserted = false;
+
+    // 1. Try raw insert with ingredients and CURRENT_TIMESTAMP (avoids Date object conversion in Neon driver)
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "RecipeHistory" ("id", "userId", "recipeName", "quantityType", "quantityValue", "ingredients", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        historyId,
+        req.userId,
+        recipeNameStr,
+        quantityTypeStr,
+        quantityValueStr,
+        ingredientsJson
+      );
+      inserted = true;
+    } catch (insertErr1: any) {
+      console.warn("Direct insert with ingredients column failed, trying without ingredients column:", insertErr1?.message);
+    }
+
+    // 2. If table didn't have ingredients column yet, try raw insert without ingredients
+    if (!inserted) {
+      try {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "RecipeHistory" ("id", "userId", "recipeName", "quantityType", "quantityValue", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          historyId,
+          req.userId,
+          recipeNameStr,
+          quantityTypeStr,
+          quantityValueStr
+        );
+        inserted = true;
+      } catch (insertErr2: any) {
+        console.warn("Direct insert without ingredients failed, trying Prisma Client:", insertErr2?.message);
+      }
+    }
+
+    // 3. Fallback to Prisma Client create with proper connection relation
+    if (!inserted) {
+      try {
+        await (prisma as any).recipeHistory.create({
+          data: {
+            id: historyId,
+            recipeName: recipeNameStr,
+            quantityType: quantityTypeStr,
+            quantityValue: quantityValueStr,
+            user: { connect: { id: req.userId } },
+          },
+        });
+        inserted = true;
+      } catch (prismaErr: any) {
+        // Also try with userId directly in case unchecked input is accepted
+        try {
+          await (prisma as any).recipeHistory.create({
+            data: {
+              id: historyId,
+              userId: req.userId,
+              recipeName: recipeNameStr,
+              quantityType: quantityTypeStr,
+              quantityValue: quantityValueStr,
+            },
+          });
+          inserted = true;
+        } catch (prismaErr2: any) {
+          console.error("Prisma recipeHistory.create fallback also failed:", prismaErr2?.message);
+        }
+      }
+    }
+
+    let returnIngredients: any[] = [];
+    if (ingredientsJson) {
+      try {
+        returnIngredients = JSON.parse(ingredientsJson);
+      } catch {
+        returnIngredients = Array.isArray(ingredients) ? ingredients : [];
+      }
+    }
 
     return res.status(201).json({
       success: true,
       item: {
-        id: newHistory.id,
-        recipeName: newHistory.recipeName,
-        quantityType: newHistory.quantityType,
-        quantityValue: newHistory.quantityValue,
-        timestamp: new Date(newHistory.createdAt).getTime(),
+        id: historyId,
+        recipeName: recipeNameStr,
+        quantityType: quantityTypeStr,
+        quantityValue: quantityValueStr,
+        ingredients: returnIngredients,
+        timestamp: Date.now(),
       },
     });
   } catch (error: any) {
@@ -501,16 +1215,25 @@ export const deleteRecipeHistoryController = async (req: Request & { userId?: st
 
     await ensureRecipeHistoryTable();
 
-    const result = await (prisma as any).recipeHistory.deleteMany({
-      where: {
-        id: id,
-        userId: req.userId,
-      },
-    });
+    try {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "RecipeHistory" WHERE "id" = $1 AND "userId" = $2`,
+        id,
+        req.userId
+      );
+    } catch {
+      try {
+        await (prisma as any).recipeHistory.deleteMany({
+          where: {
+            id: id,
+            userId: req.userId,
+          },
+        });
+      } catch { }
+    }
 
     return res.json({
       success: true,
-      deletedCount: result.count,
       message: "Recipe history item deleted successfully",
     });
   } catch (error: any) {
