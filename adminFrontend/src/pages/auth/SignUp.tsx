@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { addAdmin } from '../index'
+import { getApiBase } from '../../config/api'
 
 function Field({ label, type, value, onChange, placeholder, icon, endIcon }) {
 	return (
@@ -50,19 +51,24 @@ function SignUp({ onModeChange }) {
 		}
 		setIsLoading(true)
 		try {
-			const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+			const base = getApiBase()
 			const res = await fetch(`${base}/api/auth/send-otp`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ email: email.trim() }),
 			})
+			const data = await res.json().catch(() => ({}))
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
 				throw new Error(data.message || 'Failed to send verification code')
 			}
 			navigate('/auth/admin/otp', { state: { name: fullName.trim(), email: email.trim(), password } })
 		} catch (err) {
-			setError(err?.message || 'Registration failed')
+			const msg = err?.message || ''
+			if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed')) {
+				setError('Unable to reach the server. Please check your connection or backend service.')
+			} else {
+				setError(msg || 'Registration failed')
+			}
 		} finally {
 			setIsLoading(false)
 		}

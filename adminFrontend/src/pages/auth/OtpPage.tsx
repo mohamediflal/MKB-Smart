@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { addAdmin } from '../index'
+import { getApiBase } from '../../config/api'
 
 function Icon({ children, className = '' }) {
 	return (
@@ -17,8 +18,7 @@ function Icon({ children, className = '' }) {
 function OtpPage() {
 	const navigate = useNavigate()
 	const location = useLocation()
-	const state = location.state || {}
-	const { name, email, password, mode, role } = state
+	const { email, name, password, mode = 'signup' } = location.state || {}
 
 	const [otp, setOtp] = useState('')
 	const [error, setError] = useState(null)
@@ -28,25 +28,20 @@ function OtpPage() {
 	const [timer, setTimer] = useState(60)
 
 	useEffect(() => {
-		if (timer <= 0) return
-		const interval = setInterval(() => {
-			setTimer((prev) => prev - 1)
-		}, 1000)
-		return () => clearInterval(interval)
-	}, [timer])
-
-	useEffect(() => {
 		if (!email) {
 			navigate(mode === 'forgot' ? '/auth/forgot-password' : '/auth/admin/signup')
+			return
 		}
-	}, [email, navigate, mode])
+
+		const interval = setInterval(() => {
+			setTimer((prev) => (prev > 0 ? prev - 1 : 0))
+		}, 1000)
+
+		return () => clearInterval(interval)
+	}, [email, mode, navigate])
 
 	const handleSubmit = async (event) => {
 		event.preventDefault()
-		if (!otp.trim()) {
-			setError('Please enter the verification code')
-			return
-		}
 		if (otp.trim().length !== 6) {
 			setError('Verification code must be exactly 6 digits')
 			return
@@ -57,14 +52,14 @@ function OtpPage() {
 		setSuccess(null)
 		try {
 			if (mode === 'forgot') {
-				const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+				const base = getApiBase()
 				const res = await fetch(`${base}/api/auth/verify-otp`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ email, otp: otp.trim() }),
 				})
+				const data = await res.json().catch(() => ({}))
 				if (!res.ok) {
-					const data = await res.json().catch(() => ({}))
 					throw new Error(data.message || 'OTP verification failed')
 				}
 				navigate('/auth/admin/reset-password', { state: { email, otp: otp.trim(), role: 'admin' } })
@@ -78,7 +73,12 @@ function OtpPage() {
 				navigate('/auth/admin')
 			}
 		} catch (err) {
-			setError(err?.message || 'Verification failed')
+			const msg = err?.message || ''
+			if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed')) {
+				setError('Unable to reach the server. Please check your connection or backend service.')
+			} else {
+				setError(msg || 'Verification failed')
+			}
 		} finally {
 			setIsLoading(false)
 		}
@@ -90,7 +90,7 @@ function OtpPage() {
 		setError(null)
 		setSuccess(null)
 		try {
-			const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+			const base = getApiBase()
 			const endpoint = mode === 'forgot' ? '/api/auth/forgot-password' : '/api/auth/send-otp'
 			const body: any = { email }
 			if (mode === 'forgot') {
@@ -101,14 +101,19 @@ function OtpPage() {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(body),
 			})
+			const data = await res.json().catch(() => ({}))
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
 				throw new Error(data.message || 'Failed to send OTP')
 			}
 			setSuccess('Verification code resent successfully!')
 			setTimer(60)
 		} catch (err) {
-			setError(err?.message || 'Failed to resend code')
+			const msg = err?.message || ''
+			if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed')) {
+				setError('Unable to reach the server. Please check your connection or backend service.')
+			} else {
+				setError(msg || 'Failed to resend code')
+			}
 		} finally {
 			setIsResending(false)
 		}
