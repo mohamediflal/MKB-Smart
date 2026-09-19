@@ -1208,7 +1208,7 @@ export const deleteRecipeHistoryController = async (req: Request & { userId?: st
       return res.status(401).json({ success: false, message: "Unauthorized. User ID missing." });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!id) {
       return res.status(400).json({ success: false, message: "History ID is required." });
     }

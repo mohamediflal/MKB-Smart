@@ -8,5 +8,6 @@
     "strict": false,
     "resolveJsonModule": true
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "scratch", "dist"]
 }
