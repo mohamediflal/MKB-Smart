@@ -425,7 +425,7 @@ export default function Orders() {
       <PageHeader title="Orders" subtitle="Track and manage customer orders" />
 
       {/* Pending Orders */}
-      {ordersList.filter(o => o.status === "Pending").length > 0 && (
+      {ordersList.filter(o => o.status === "Pending" || o.status?.toUpperCase() === "PENDING").length > 0 && (
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
             <span className="relative flex h-3.5 w-3.5">
@@ -433,11 +433,11 @@ export default function Orders() {
               <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500"></span>
             </span>
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-              Pending Orders ({ordersList.filter(o => o.status === "Pending").length})
+              Pending Orders ({ordersList.filter(o => o.status === "Pending" || o.status?.toUpperCase() === "PENDING").length})
             </h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ordersList.filter(o => o.status === "Pending").map((o) => (
+            {ordersList.filter(o => o.status === "Pending" || o.status?.toUpperCase() === "PENDING").map((o) => (
               <Card key={o.id} className="p-4 border-l-4 border-l-amber-500 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

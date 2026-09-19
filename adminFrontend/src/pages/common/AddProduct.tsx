@@ -9,6 +9,7 @@ export default function AddProduct({ isOpen, onClose, onSave, categories: propCa
   const [unit, setUnit] = useState("1 kg");
   const [stock, setStock] = useState("");
   const [sPrice, setSPrice] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [description, setDescription] = useState("");
@@ -21,7 +22,7 @@ export default function AddProduct({ isOpen, onClose, onSave, categories: propCa
     message: string;
   } | null>(null);
 
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeCategories = propCategories || [];
   const categoriesList = activeCategories.map(c => c.name);
@@ -45,15 +46,19 @@ export default function AddProduct({ isOpen, onClose, onSave, categories: propCa
 
   if (!isOpen && !notification) return null;
 
-  const handleFileChange = (e) => {
+  const handleFileChange = (e: any) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const url = URL.createObjectURL(file);
       setImagePreview(url);
+      if (notification?.title === "Image Required") {
+        setNotification(null);
+      }
     }
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e: any) => {
     e.preventDefault();
     setIsDragging(true);
   };
@@ -62,24 +67,36 @@ export default function AddProduct({ isOpen, onClose, onSave, categories: propCa
     setIsDragging(false);
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = (e: any) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith("image/")) {
+      setImageFile(file);
       const url = URL.createObjectURL(file);
       setImagePreview(url);
+      if (fileInputRef.current && e.dataTransfer.files) {
+        try {
+          fileInputRef.current.files = e.dataTransfer.files;
+        } catch {
+          // ignore if assignment is restricted
+        }
+      }
+      if (notification?.title === "Image Required") {
+        setNotification(null);
+      }
     }
   };
 
   const handleRemoveImage = () => {
+    setImageFile(null);
     setImagePreview("");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (!name.trim() || !stock || !sPrice) {
       setNotification({
@@ -90,7 +107,7 @@ export default function AddProduct({ isOpen, onClose, onSave, categories: propCa
       return;
     }
 
-    const file = fileInputRef.current?.files?.[0];
+    const file = imageFile || fileInputRef.current?.files?.[0];
     if (!file) {
       setNotification({
         type: "error",
@@ -161,7 +178,11 @@ export default function AddProduct({ isOpen, onClose, onSave, categories: propCa
         setUnit("1 kg");
         setStock("");
         setSPrice("");
+        setImageFile(null);
         setImagePreview("");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
         onClose();
       } else {
         const errData = await res.json().catch(() => ({}));

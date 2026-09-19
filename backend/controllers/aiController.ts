@@ -102,6 +102,12 @@ export const generateRecipeController = async (req: Request, res: Response) => {
           matched = dbProducts.find(p => p.id === ing.id) || null;
         }
 
+        // Safety Guard: Verify matched store product is not incompatible with recipe
+        if (matched && isProductIncompatibleWithRecipe(recipeName, matched.name, matched.category?.name)) {
+          console.log(`[Product Matcher Guard] Rejected incompatible matched product "${matched.name}" for recipe "${recipeName}"`);
+          matched = null;
+        }
+
         // Reconcile the AI's numeric quantity, unit and displayQuantity so that the
         // cart quantity is expressed in the store product's sale unit (kg / L) when the
         // product is sold by weight or volume.
@@ -181,11 +187,27 @@ export const generateRecipeController = async (req: Request, res: Response) => {
       quantityValue: numServings,
       servings: numServings,
       ingredients: uniqueIngredients,
-      instructions: aiResult?.instructions || [
-        `Prepare all available ingredients for ${recipeName.trim()}.`,
-        `Cook thoroughly according to recipe proportions for ${numServings} ${qtyType}.`,
-        `Serve fresh and enjoy!`
-      ]
+      instructions: (() => {
+        if (Array.isArray(aiResult?.instructions) && aiResult.instructions.length > 0) {
+          const isDessert = isDessertOrBakeryRecipe((recipeName || "").toLowerCase().trim());
+          const cleaned = aiResult.instructions
+            .map((step: any) => String(step || "").trim())
+            .filter((step: string) => {
+              if (!step) return false;
+              const stepLower = step.toLowerCase();
+              if (!isDessert && (stepLower.includes("cocoa") || stepLower.includes("chocolate") || stepLower.includes("vanilla extract"))) {
+                return false;
+              }
+              return true;
+            });
+          if (cleaned.length > 0) return cleaned;
+        }
+        return [
+          `Prepare all available ingredients for ${recipeName.trim()}.`,
+          `Cook thoroughly according to recipe proportions for ${numServings} ${qtyType}.`,
+          `Serve fresh and enjoy!`
+        ];
+      })()
     });
   } catch (error: any) {
     console.error("AI Recipe Generation Controller Error:", error);
@@ -687,26 +709,236 @@ const STAPLE_CARB_RULES: Array<{
     }
   ];
 
+export function isDessertOrBakeryRecipe(normRecipe: string): boolean {
+  return (
+    normRecipe.includes("cake") ||
+    normRecipe.includes("cookie") ||
+    normRecipe.includes("brownie") ||
+    normRecipe.includes("pancake") ||
+    normRecipe.includes("waffle") ||
+    normRecipe.includes("pastry") ||
+    normRecipe.includes("muffin") ||
+    normRecipe.includes("cupcake") ||
+    normRecipe.includes("pudding") ||
+    normRecipe.includes("custard") ||
+    normRecipe.includes("dessert") ||
+    normRecipe.includes("donut") ||
+    normRecipe.includes("doughnut") ||
+    normRecipe.includes("tart") ||
+    normRecipe.includes("pie") ||
+    normRecipe.includes("sweet") ||
+    normRecipe.includes("halwa") ||
+    normRecipe.includes("payasam") ||
+    normRecipe.includes("kheer") ||
+    normRecipe.includes("gulab jamun") ||
+    normRecipe.includes("ice cream") ||
+    normRecipe.includes("chocolate")
+  );
+}
+
+export function isBiryaniRecipe(normRecipe: string): boolean {
+  return (
+    normRecipe.includes("biryani") ||
+    normRecipe.includes("biriyani") ||
+    normRecipe.includes("briyani")
+  );
+}
+
+// Ingredients exclusively used in sweet baking, desserts, or confectionery.
+// Strictly forbidden in savory main dishes (Biryani, Curries, Noodles, Fried Rice, Soups, etc.).
+const DESSERT_AND_BAKING_TERMS = [
+  "cocoa powder", "cocoa", "cacao", "chocolate", "chocolate chip", "chocolate chips", "chocolate syrup",
+  "vanilla extract", "vanilla essence", "vanilla pod", "vanilla", "strawberry essence",
+  "custard powder", "jelly powder", "gelatin", "marshmallow", "marshmallows",
+  "icing sugar", "powdered sugar", "frosting", "sprinkles",
+  "cake mix", "brownie mix", "cookie dough"
+];
+
+// Condiments and sauces unrelated to authentic Biryani preparation
+const BIRYANI_UNRELATED_CONDIMENTS = [
+  "soy sauce", "oyster sauce", "fish sauce", "barbecue sauce", "bbq sauce",
+  "mayonnaise", "ketchup", "tomato ketchup", "mustard sauce", "mustard paste",
+  "pasta sauce", "pizza sauce", "marinara sauce", "tartar sauce"
+];
+
+// Starches unrelated to Biryani (which inherently uses rice)
+const BIRYANI_UNRELATED_GRAINS = [
+  "noodle", "noodles", "pasta", "spaghetti", "macaroni", "lasagna", "ramen",
+  "chow mein", "vermicelli", "oats", "rolled oats"
+];
+
 export function filterIrrelevantIngredients(recipeName: string, ingredients: any[]): any[] {
   const normRecipe = (recipeName || "").toLowerCase().trim();
+  const isBiryani = isBiryaniRecipe(normRecipe);
+  const isDessert = isDessertOrBakeryRecipe(normRecipe);
+
+  // Variant flags for Biryani protein consistency
+  const isVegBiryani = isBiryani && (normRecipe.includes("veg") || normRecipe.includes("paneer") || normRecipe.includes("mushroom"));
+  const isChickenBiryani = isBiryani && normRecipe.includes("chicken");
+  const isMuttonBiryani = isBiryani && (normRecipe.includes("mutton") || normRecipe.includes("lamb") || normRecipe.includes("goat"));
+  const isBeefBiryani = isBiryani && normRecipe.includes("beef");
+  const isFishBiryani = isBiryani && normRecipe.includes("fish");
+  const isPrawnBiryani = isBiryani && (normRecipe.includes("prawn") || normRecipe.includes("shrimp"));
 
   return ingredients.filter((ing) => {
     if (!ing || !ing.name) return false;
     const ingNameLower = String(ing.name).toLowerCase().trim();
 
+    // 1. Check side-dish staple carbs (e.g. side bread / side rice for curry)
     for (const rule of STAPLE_CARB_RULES) {
       const isStapleCarb = rule.keywords.some((kw) => ingNameLower === kw || ingNameLower.includes(kw));
       if (isStapleCarb) {
-        // Check if recipe name explicitly requires/contains this staple carb
         const isRecipeAllowed = rule.allowedRecipeTerms.some((term) => normRecipe.includes(term));
         if (!isRecipeAllowed) {
-          console.log(`[Validation Filter] Removed irrelevant side-dish ingredient "${ing.name}" from recipe "${recipeName}"`);
+          console.log(`[Validation Filter] Removed irrelevant side-dish staple "${ing.name}" from recipe "${recipeName}"`);
           return false;
         }
       }
     }
+
+    // 2. Prevent confectionery, sweet baking, and dessert items in savory recipes
+    if (!isDessert) {
+      const isDessertIngredient = DESSERT_AND_BAKING_TERMS.some((term) =>
+        ingNameLower === term || ingNameLower.includes(term)
+      );
+      if (isDessertIngredient) {
+        console.log(`[Validation Filter] Removed incompatible dessert/baking ingredient "${ing.name}" from savory recipe "${recipeName}"`);
+        return false;
+      }
+
+      // Leaveners like baking powder/soda are not used in Biryani, curries, or rice
+      if (isBiryani || normRecipe.includes("curry") || normRecipe.includes("rice")) {
+        if (ingNameLower.includes("baking powder") || ingNameLower.includes("baking soda") || ingNameLower === "yeast") {
+          console.log(`[Validation Filter] Removed baking leavener "${ing.name}" from recipe "${recipeName}"`);
+          return false;
+        }
+      }
+    }
+
+    // 3. Strict Biryani culinary relevance rules
+    if (isBiryani) {
+      // 3a. Incompatible grains and noodles
+      if (BIRYANI_UNRELATED_GRAINS.some((g) => ingNameLower === g || ingNameLower.includes(g))) {
+        console.log(`[Validation Filter] Removed incompatible carb "${ing.name}" from Biryani recipe "${recipeName}"`);
+        return false;
+      }
+
+      // 3b. Incompatible condiments
+      if (BIRYANI_UNRELATED_CONDIMENTS.some((c) => ingNameLower === c || ingNameLower.includes(c))) {
+        console.log(`[Validation Filter] Removed unrelated condiment "${ing.name}" from Biryani recipe "${recipeName}"`);
+        return false;
+      }
+
+      // 3c. Protein specificity for Biryani
+      if (isVegBiryani) {
+        const meatTerms = ["chicken", "beef", "mutton", "lamb", "goat", "pork", "fish", "prawn", "shrimp", "seafood", "crab", "squid", "bacon", "ham", "sausage"];
+        if (meatTerms.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed non-veg ingredient "${ing.name}" from Vegetarian Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isChickenBiryani) {
+        const competingProteins = ["mutton", "lamb", "goat", "beef", "pork", "fish", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Chicken Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isMuttonBiryani) {
+        const competingProteins = ["chicken", "beef", "pork", "fish", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Mutton Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isBeefBiryani) {
+        const competingProteins = ["chicken", "mutton", "lamb", "goat", "pork", "fish", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Beef Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isFishBiryani) {
+        const competingProteins = ["chicken", "beef", "mutton", "lamb", "goat", "pork", "prawn", "shrimp", "crab", "squid"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing meat/seafood "${ing.name}" from Fish Biryani "${recipeName}"`);
+          return false;
+        }
+      } else if (isPrawnBiryani) {
+        const competingProteins = ["chicken", "beef", "mutton", "lamb", "goat", "pork", "fish"];
+        if (competingProteins.some((m) => ingNameLower.includes(m))) {
+          console.log(`[Validation Filter] Removed competing protein "${ing.name}" from Prawn Biryani "${recipeName}"`);
+          return false;
+        }
+      }
+    }
+
     return true;
   });
+}
+
+/**
+ * Validates whether a matched store product is culinary-compatible with the recipe.
+ * Prevents store catalog mismatches (e.g. Cocoa Powder matching a Biryani spice)
+ * from ever being attached to the grocery list.
+ */
+export function isProductIncompatibleWithRecipe(
+  recipeName: string,
+  productName: string,
+  categoryName?: string | null
+): boolean {
+  const normRecipe = (recipeName || "").toLowerCase().trim();
+  const prodLower = (productName || "").toLowerCase().trim();
+  const catLower = (categoryName || "").toLowerCase().trim();
+
+  const isDessert = isDessertOrBakeryRecipe(normRecipe);
+  const isBiryani = isBiryaniRecipe(normRecipe);
+
+  if (!isDessert) {
+    // Savory recipes must never match sweet dessert / baking products
+    if (
+      prodLower.includes("cocoa") ||
+      prodLower.includes("chocolate") ||
+      prodLower.includes("custard powder") ||
+      prodLower.includes("jelly") ||
+      prodLower.includes("marshmallow") ||
+      prodLower.includes("vanilla extract") ||
+      prodLower.includes("vanilla essence")
+    ) {
+      return true;
+    }
+
+    if (isBiryani && catLower.includes("baking") && (prodLower.includes("powder") || prodLower.includes("extract"))) {
+      return true;
+    }
+  }
+
+  if (isBiryani) {
+    if (
+      prodLower.includes("pasta") ||
+      prodLower.includes("noodle") ||
+      prodLower.includes("macaroni") ||
+      prodLower.includes("spaghetti") ||
+      prodLower.includes("mayonnaise") ||
+      prodLower.includes("soy sauce")
+    ) {
+      return true;
+    }
+
+    // Protein check on matched store product for Biryani
+    const isVegBiryani = normRecipe.includes("veg") || normRecipe.includes("paneer");
+    const isChickenBiryani = normRecipe.includes("chicken");
+    const isMuttonBiryani = normRecipe.includes("mutton") || normRecipe.includes("lamb");
+    const isBeefBiryani = normRecipe.includes("beef");
+    const isFishBiryani = normRecipe.includes("fish");
+    const isPrawnBiryani = normRecipe.includes("prawn") || normRecipe.includes("shrimp");
+
+    const allMeatTerms = ["chicken", "beef", "mutton", "lamb", "pork", "fish", "prawn", "shrimp"];
+    if (isVegBiryani && allMeatTerms.some((t) => prodLower.includes(t))) return true;
+    if (isChickenBiryani && ["mutton", "beef", "pork", "fish", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isMuttonBiryani && ["chicken", "beef", "pork", "fish", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isBeefBiryani && ["chicken", "mutton", "pork", "fish", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isFishBiryani && ["chicken", "beef", "mutton", "pork", "prawn", "shrimp"].some((t) => prodLower.includes(t))) return true;
+    if (isPrawnBiryani && ["chicken", "beef", "mutton", "pork"].some((t) => prodLower.includes(t))) return true;
+  }
+
+  return false;
 }
 
 let isRecipeHistoryTableChecked = false;

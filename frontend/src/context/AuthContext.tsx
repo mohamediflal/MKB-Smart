@@ -209,6 +209,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("Name, email, password, and verification OTP are required.");
     }
 
+    if (password.length <= 8) {
+      throw new Error("Password must be more than 8 characters.");
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: "POST",
       headers: {

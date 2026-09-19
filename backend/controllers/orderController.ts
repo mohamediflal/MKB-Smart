@@ -49,6 +49,8 @@ const formatOrder = (order: any) => {
     } else {
       status = 'Placed';
     }
+  } else if (order.status === 'PENDING' || order.status === 'Pending') {
+    status = 'Pending';
   } else if (order.status === 'PROCESSING') {
     status = 'Processing';
   } else if (order.status === 'SHIPPED') {
@@ -478,7 +480,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     const createdAtTime = new Date(order.createdAt).getTime();
     const timeDifference = Date.now() - createdAtTime;
     
-    if (order.status === 'PLACED' && timeDifference < 60000) {
+    if ((order.status === 'PLACED' && timeDifference < 60000) || order.status === 'PENDING' || order.status === 'Pending') {
       return res.status(400).json({ success: false, message: 'Cannot update status of a Pending order. Please wait for it to transition to Placed.' });
     }
 
@@ -574,7 +576,7 @@ export const cancelUserOrder = async (req: Request & { userId?: string }, res: R
     // Determine current logical status
     const createdAtTime = new Date(order.createdAt).getTime();
     const timeDifference = Date.now() - createdAtTime;
-    const isPending = order.status === 'PLACED' && timeDifference < 60000;
+    const isPending = (order.status === 'PLACED' && timeDifference < 60000) || order.status === 'PENDING' || order.status === 'Pending';
 
     if (!isPending) {
       return res.status(400).json({ success: false, message: 'Order can only be cancelled while status is Pending (first 1 minute).' });

@@ -298,7 +298,7 @@ function AdminDashboard({ onSignOut }) {
     },
     { 
       label: "PENDING", 
-      value: loading ? "..." : dbOrders.filter(o => o.status === "Pending" || o.status === "Placed" || o.status === "Processing").length.toLocaleString(), 
+      value: loading ? "..." : dbOrders.filter(o => o.status === "Pending" || o.status?.toUpperCase() === "PENDING").length.toLocaleString(), 
       icon: Clock, 
       color: "text-rose-600 bg-rose-50" 
     },

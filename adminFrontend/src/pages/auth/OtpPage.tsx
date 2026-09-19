@@ -69,6 +69,10 @@ function OtpPage() {
 				}
 				navigate('/auth/admin/reset-password', { state: { email, otp: otp.trim(), role: 'admin' } })
 			} else {
+				if (!password || password.length <= 8) {
+					setError('Password must be more than 8 characters.')
+					return
+				}
 				await addAdmin({ name, email, password, otp: otp.trim() })
 				alert('Admin account registered successfully! You can now log in.')
 				navigate('/auth/admin')

@@ -279,6 +279,10 @@ export const register = async (req: Request, res: Response) => {
         return res.status(400).json({ message: "Please provide all fields including verification OTP" });
     }
 
+    if (password.length <= 8) {
+        return res.status(400).json({ message: "Password must be more than 8 characters." });
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
 
     // Prevent user registration using super admin email
@@ -775,6 +779,10 @@ export const adminRegister = async (req: Request, res: Response) => {
         return res.status(400).json({ message: 'Please provide all fields including verification OTP' })
     }
 
+    if (password.length <= 8) {
+        return res.status(400).json({ message: "Password must be more than 8 characters." });
+    }
+
     const normalizedEmail = email.toLowerCase().trim()
 
     // Verify OTP first
@@ -911,6 +919,10 @@ export const createAdmin = async (req: Request, res: Response) => {
 
         if (!name || !email || !password) {
             return res.status(400).json({ message: 'Please provide all required fields (name, email, password)' });
+        }
+
+        if (password.length <= 8) {
+            return res.status(400).json({ message: "Password must be more than 8 characters." });
         }
 
         const normalizedEmail = email.toLowerCase().trim();

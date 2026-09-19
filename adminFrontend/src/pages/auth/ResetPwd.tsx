@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 
 function Icon({ children, className = '' }) {
 	return (
@@ -13,7 +14,7 @@ function Icon({ children, className = '' }) {
 	)
 }
 
-function Field({ label, type, value, onChange, placeholder, icon }) {
+function Field({ label, type, value, onChange, placeholder, icon, endIcon }) {
 	return (
 		<label className="block">
 			<div className="mb-2 text-sm font-semibold text-slate-800">{label}</div>
@@ -27,8 +28,9 @@ function Field({ label, type, value, onChange, placeholder, icon }) {
 					value={value}
 					onChange={onChange}
 					placeholder={placeholder}
-					className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.05)] outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+					className={`h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 ${endIcon ? 'pr-12' : 'pr-4'} text-sm text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.05)] outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10`}
 				/>
+				{endIcon && <span className="absolute inset-y-0 right-4 flex items-center">{endIcon}</span>}
 			</div>
 		</label>
 	)
@@ -42,6 +44,8 @@ function ResetPwd() {
 
 	const [newPassword, setNewPassword] = useState('')
 	const [confirmPassword, setConfirmPassword] = useState('')
+	const [showNewPassword, setShowNewPassword] = useState(false)
+	const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 	const [error, setError] = useState(null)
 	const [isLoading, setIsLoading] = useState(false)
 
@@ -132,7 +136,7 @@ function ResetPwd() {
 						<form onSubmit={handleSubmit} className="space-y-5">
 							<Field
 								label="New Password"
-								type="password"
+								type={showNewPassword ? 'text' : 'password'}
 								value={newPassword}
 								onChange={(event) => setNewPassword(event.target.value)}
 								placeholder="Enter new password"
@@ -155,11 +159,26 @@ function ResetPwd() {
 										/>
 									</svg>
 								}
+								endIcon={
+									<button
+										type="button"
+										onClick={() => setShowNewPassword(!showNewPassword)}
+										className="text-slate-400 hover:text-slate-600 focus:outline-none bg-transparent border-0 cursor-pointer p-1 transition-colors"
+										aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+										title={showNewPassword ? 'Hide password' : 'Show password'}
+									>
+										{showNewPassword ? (
+											<EyeOff className="h-5 w-5" />
+										) : (
+											<Eye className="h-5 w-5" />
+										)}
+									</button>
+								}
 							/>
 
 							<Field
 								label="Confirm New Password"
-								type="password"
+								type={showConfirmPassword ? 'text' : 'password'}
 								value={confirmPassword}
 								onChange={(event) => setConfirmPassword(event.target.value)}
 								placeholder="Confirm new password"
@@ -181,6 +200,21 @@ function ResetPwd() {
 											strokeWidth="1.8"
 										/>
 									</svg>
+								}
+								endIcon={
+									<button
+										type="button"
+										onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+										className="text-slate-400 hover:text-slate-600 focus:outline-none bg-transparent border-0 cursor-pointer p-1 transition-colors"
+										aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+										title={showConfirmPassword ? 'Hide password' : 'Show password'}
+									>
+										{showConfirmPassword ? (
+											<EyeOff className="h-5 w-5" />
+										) : (
+											<Eye className="h-5 w-5" />
+										)}
+									</button>
 								}
 							/>
 
