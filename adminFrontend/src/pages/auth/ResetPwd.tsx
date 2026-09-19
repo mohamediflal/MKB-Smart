@@ -39,8 +39,7 @@ function Field({ label, type, value, onChange, placeholder, icon, endIcon }) {
 function ResetPwd() {
 	const navigate = useNavigate()
 	const location = useLocation()
-	const state = location.state || {}
-	const { email, otp, role } = state
+	const { email, otp, role = 'admin' } = location.state || {}
 
 	const [newPassword, setNewPassword] = useState('')
 	const [confirmPassword, setConfirmPassword] = useState('')
@@ -59,10 +58,6 @@ function ResetPwd() {
 		event.preventDefault()
 		setError(null)
 
-		if (!newPassword.trim() || !confirmPassword.trim()) {
-			setError('Please fill in both fields')
-			return
-		}
 		if (newPassword !== confirmPassword) {
 			setError('Passwords do not match')
 			return
@@ -74,20 +69,25 @@ function ResetPwd() {
 
 		setIsLoading(true)
 		try {
-			const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+			const base = getApiBase()
 			const res = await fetch(`${base}/api/auth/reset-password`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ email, otp, newPassword: newPassword.trim(), role }),
 			})
+			const data = await res.json().catch(() => ({}))
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
 				throw new Error(data.message || 'Reset password failed')
 			}
 			alert('Password reset successfully! You can now log in.')
 			navigate('/auth/admin')
 		} catch (err) {
-			setError(err?.message || 'Failed to update password')
+			const msg = err?.message || ''
+			if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed')) {
+				setError('Unable to reach the server. Please check your connection or backend service.')
+			} else {
+				setError(msg || 'Failed to update password')
+			}
 		} finally {
 			setIsLoading(false)
 		}

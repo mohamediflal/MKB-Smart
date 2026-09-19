@@ -6,6 +6,17 @@ import App from './App.tsx'
 
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
+  // Normalize URL to eliminate duplicate slashes (e.g. https://domain.com//api -> https://domain.com/api)
+  // This prevents 308 Permanent Redirects on CORS preflight (OPTIONS) requests
+  if (typeof args[0] === 'string') {
+    args[0] = args[0].replace(/([^:])\/\/+/g, '$1/');
+  } else if (args[0] && typeof args[0].url === 'string') {
+    const cleanUrl = args[0].url.replace(/([^:])\/\/+/g, '$1/');
+    if (cleanUrl !== args[0].url) {
+      args[0] = new Request(cleanUrl, args[0]);
+    }
+  }
+
   const res = await originalFetch(...args);
   if (res.status === 403) {
     const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');

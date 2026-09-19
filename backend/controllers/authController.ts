@@ -18,6 +18,9 @@ const createMailTransporter = async () => {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS,
             },
+            connectionTimeout: 10000,
+            greetingTimeout: 5000,
+            socketTimeout: 15000,
         });
     }
     return null;
@@ -469,15 +472,22 @@ export const forgotPassword = async (req: Request, res: Response) => {
                 `,
             };
 
-            const info = await transporter.sendMail(mailOptions);
-
-            const previewUrl = nodemailer.getTestMessageUrl(info);
-            if (previewUrl) {
-                console.log(`[Ethereal Email Sent] Preview URL: ${previewUrl}`);
-                return res.status(200).json({
-                    success: true,
-                    message: 'OTP sent to email address.',
-                    previewUrl,
+            try {
+                const info = await transporter.sendMail(mailOptions);
+                const previewUrl = nodemailer.getTestMessageUrl(info);
+                if (previewUrl) {
+                    console.log(`[Ethereal Email Sent] Preview URL: ${previewUrl}`);
+                    return res.status(200).json({
+                        success: true,
+                        message: 'OTP sent to email address.',
+                        previewUrl,
+                    });
+                }
+            } catch (emailErr: any) {
+                console.error('Failed to send reset email via SMTP:', emailErr);
+                return res.status(500).json({
+                    success: false,
+                    message: `Email delivery failed: ${emailErr.message || 'SMTP service error'}. Please verify backend EMAIL credentials.`,
                 });
             }
         }

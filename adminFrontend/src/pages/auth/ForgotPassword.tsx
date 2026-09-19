@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getApiBase } from '../../config/api'
 
 function Icon({ children, className = '' }) {
 	return (
@@ -26,19 +27,24 @@ function ForgotPassword() {
 		setIsLoading(true)
 		setError(null)
 		try {
-			const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+			const base = getApiBase()
 			const res = await fetch(`${base}/api/auth/forgot-password`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ email: email.trim(), role: 'admin' }),
 			})
+			const data = await res.json().catch(() => ({}))
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}))
-				throw new Error(data.message || 'Failed to send OTP')
+				throw new Error(data.message || `Request failed (${res.status})`)
 			}
 			navigate('/auth/admin/otp', { state: { email: email.trim(), mode: 'forgot', role: 'admin' } })
 		} catch (err) {
-			setError(err?.message || 'Failed to send verification code')
+			const msg = err?.message || ''
+			if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed')) {
+				setError('Unable to reach the server. Please check your internet connection or verify the backend service.')
+			} else {
+				setError(msg || 'Failed to send verification code')
+			}
 		} finally {
 			setIsLoading(false)
 		}
