@@ -49,6 +49,11 @@ app.use((error: any, req: Request, res: Response, next: NextFunction) => {
     res.status(500).json({ message: error.message });
 });
 
-app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT} (0.0.0.0)`);
-});
+// Only start the HTTP listener for standalone/local development
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    app.listen(Number(PORT), '0.0.0.0', () => {
+        console.log(`Server is running on port ${PORT} (0.0.0.0)`);
+    });
+}
+
+export default app;

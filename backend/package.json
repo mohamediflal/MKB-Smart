@@ -8,7 +8,9 @@
   "type": "module",
   "scripts": {
     "server": "nodemon --exec tsx server.ts",
-    "start": "tsx server.ts"
+    "start": "tsx server.ts",
+    "build": "prisma generate",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
