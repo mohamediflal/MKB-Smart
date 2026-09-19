@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { prisma } from '../configs/prisma';
+import { prisma } from '../configs/prisma.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import cloudinary from '../configs/cloudinary';
+import cloudinary from '../configs/cloudinary.js';
 import nodemailer from 'nodemailer';
 import { handleAdminRegistration } from '../services/notificationService.js';
 
