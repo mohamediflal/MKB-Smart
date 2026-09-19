@@ -2,7 +2,7 @@ import express from 'express';
 import { register, login, adminRegister, adminLogin, superAdminLogin, deleteUser, updateUser, updateAdmin, deleteAdmin, listUsers, listAdmins, getAdminProfile, updateUserStatus, sendOtp, forgotPassword, verifyOtp, resetPassword, createAdmin } from '../controllers/authController.js';
 import userAuth from '../middleware/userAuth.js';
 import superAdminAuth from '../middleware/superAdminAuth.js';
-import upload from '../middleware/multer.ts';
+import upload from '../middleware/multer.js';
 import adminAuth from '../middleware/adminAuth.js';
 
 const authRouter = express.Router();

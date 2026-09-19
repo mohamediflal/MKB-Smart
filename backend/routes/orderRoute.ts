@@ -1,5 +1,5 @@
 import express from 'express';
-import { placeOrder, placeCardOrder, createPaymentIntent, getUserOrders, updateOrderStatus, getAllOrders, cancelUserOrder } from '../controllers/orderController';
+import { placeOrder, placeCardOrder, createPaymentIntent, getUserOrders, updateOrderStatus, getAllOrders, cancelUserOrder } from '../controllers/orderController.js';
 import userAuth from '../middleware/userAuth.js';
 import adminAuth from '../middleware/adminAuth.js';
 import superAdminAuth from '../middleware/superAdminAuth.js';

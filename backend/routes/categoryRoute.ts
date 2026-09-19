@@ -1,7 +1,7 @@
 import express from 'express';
 import { addCategory, listCategories, updateCategory, deleteCategory } from '../controllers/categoryController.js';
 import adminAuth from '../middleware/adminAuth.js';
-import upload from '../middleware/multer.ts';
+import upload from '../middleware/multer.js';
 
 
 const categoryRouter = express.Router();

@@ -63,7 +63,7 @@ export const getNotifications = async (req: Request & { admin?: any }, res: Resp
 export const markAsRead = async (req: Request & { admin?: any }, res: Response) => {
   try {
     const adminId = req.admin?.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!adminId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -156,7 +156,7 @@ export const markAllAsRead = async (req: Request & { admin?: any }, res: Respons
 export const deleteNotification = async (req: Request & { admin?: any }, res: Response) => {
   try {
     const adminId = req.admin?.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!adminId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -286,7 +286,7 @@ export const markAllUserNotificationsAsRead = async (req: Request & { userId?: s
 export const markUserNotificationAsRead = async (req: Request & { userId?: string }, res: Response) => {
   try {
     const userId = req.userId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -319,7 +319,7 @@ export const markUserNotificationAsRead = async (req: Request & { userId?: strin
 export const deleteUserNotification = async (req: Request & { userId?: string }, res: Response) => {
   try {
     const userId = req.userId;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
