@@ -260,6 +260,9 @@ const initialAdmins = [
 export const admins = getStoredItem('grocery_admins_v2', initialAdmins)
 
 export async function addAdmin(a) {
+    if (!a.password || a.password.length <= 8) {
+        throw new Error('Password must be more than 8 characters.')
+    }
     const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
     const res = await fetch(`${base}/api/auth/admin/register`, {
         method: 'POST',

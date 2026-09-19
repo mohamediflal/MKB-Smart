@@ -43,7 +43,18 @@ const IRREGULAR_PLURALS: Record<string, string> = {
   prawns: "prawn",
   shrimps: "shrimp",
   fish: "fish",
+  seeds: "seed",
+  flakes: "flake",
 };
+
+// Generic form / preparation / packaging descriptor tokens that do not convey ingredient identity.
+// Two products sharing ONLY a form descriptor token (e.g. "powder", "oil", "paste") MUST NOT match.
+export const FORM_DESCRIPTOR_TOKENS = new Set([
+  "powder", "flour", "oil", "sauce", "paste", "seed", "extract", "flake",
+  "leaf", "leaves", "syrup", "juice", "puree", "mix", "drink", "drop",
+  "slab", "cube", "block", "slice", "piece", "can", "bottle", "packet",
+  "tin", "pack", "bag", "jar", "box", "tub", "sachet", "stick", "pod"
+]);
 
 // Tokens that indicate a product is a processed/prepared item (not a raw ingredient).
 // When such a token appears only on the product side, the match is penalized so that
@@ -55,11 +66,12 @@ const PRODUCT_TYPE_TOKENS = new Set([
 ]);
 
 const TOKEN_SYNONYMS: Record<string, string> = {
+  tumeric: "turmeric",
   chilli: "chili",
+  chillies: "chili",
   chilly: "chili",
   chiles: "chili",
   chilis: "chili",
-  chili: "chili",
   yoghurt: "yogurt",
   curd: "yogurt",
   aubergine: "eggplant",
@@ -74,6 +86,7 @@ const TOKEN_SYNONYMS: Record<string, string> = {
   cilantro: "coriander",
   corriander: "coriander",
   prawn: "shrimp",
+  prawns: "shrimp",
   shrimps: "shrimp",
   pudina: "mint",
   dhal: "dal",
@@ -81,6 +94,13 @@ const TOKEN_SYNONYMS: Record<string, string> = {
   lentil: "dal",
   lentils: "dal",
   ketchup: "tomatosauce",
+  biriyani: "biryani",
+  briyani: "biryani",
+  mutton: "mutton",
+  lamb: "mutton",
+  goat: "mutton",
+  ghee: "ghee",
+  clarifiedbutter: "ghee",
 };
 
 function normalizeToken(raw: string): string | null {
@@ -176,6 +196,15 @@ function matchScore(ingTokens: string[], prodTokens: string[]): number {
   const coverage = shared / ingTokens.length;
   const specificity = shared / prodTokens.length;
   let score = 0.6 * coverage + 0.4 * specificity;
+
+  // CRITICAL: Prevent false matches where only generic form/descriptor tokens
+  // (e.g. "powder", "flour", "oil", "sauce", "paste", "seeds") match without sharing
+  // any core substantive ingredient token (e.g. preventing "Coriander Powder" -> "Cocoa Powder").
+  const hasSubstantiveIngToken = ingTokens.some((t) => !FORM_DESCRIPTOR_TOKENS.has(t));
+  const substantiveShared = ingTokens.filter((t) => prodSet.has(t) && !FORM_DESCRIPTOR_TOKENS.has(t));
+  if (hasSubstantiveIngToken && substantiveShared.length === 0) {
+    return 0;
+  }
 
   // Penalize when the product is a processed item whose product-type word is not shared
   // with the ingredient (e.g. "Potato" vs "Lays Potato Chips").

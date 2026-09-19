@@ -63,11 +63,15 @@ TASK: Calculate and generate the complete, realistic, culinary-accurate grocery 
 
 CRITICAL RULES:
 1. STRICT RECIPE RELEVANCE (MOST IMPORTANT):
-   - Generate ONLY the ingredients directly required to prepare/cook "${recipeName}" from scratch.
+   - Generate ONLY the ingredients directly and genuinely required to prepare/cook "${recipeName}" from scratch.
+   - For Biryani (Chicken, Mutton, Beef, Fish, Prawn, Vegetable Biryani): Include Basmati rice, primary protein/vegetables specifically matching the dish name, onions, tomatoes, yogurt, ginger, garlic, green chilies, mint leaves, coriander leaves, ghee/oil, whole spices (cinnamon, cloves, cardamom, bay leaf, star anise), biryani masala, turmeric, chili powder, salt.
+   - NEVER include Cocoa Powder, chocolate, vanilla, custard powder, baking powder, pasta, noodles, or sweet bakery items in Biryani or any savory dish!
+   - NEVER cross-contaminate proteins (e.g. no mutton or beef in Chicken Biryani, no meat or seafood in Vegetable Biryani).
    - Do NOT include optional side dishes, serving suggestions, accompaniments, or unrelated staple carbs (such as Rice, Basmati Rice, Bread, Roti, Naan, Noodles, Pasta) UNLESS "${recipeName}" itself is a dish that inherently includes that grain/carbs in its preparation (e.g. Biriyani, Fried Rice, Noodles, Pasta, Risotto, Macaroni).
    - EXAMPLE: For "Beef Curry", include Beef, Onion, Tomato, Garlic, Ginger, Green Chili, Curry Leaves, Coconut Milk, Cooking Oil, Spices, Salt. Do NOT include Basmati Rice or any rice!
    - EXAMPLE: For "Beef Biriyani", Basmati Rice IS required because rice is an essential cooked component of biriyani.
    - BEFORE outputting each ingredient, verify that it is actually an ingredient cooked inside "${recipeName}". If it is a side dish or serving suggestion eaten WITH the dish, REMOVE IT!
+   - The grocery ingredients list and step-by-step instructions MUST correspond to the exact same ingredients, quantities, and units.
 
 2. SERVING SIZE SCALING:
    - You MUST calculate ingredient quantities strictly based on the requested target: ${targetDescription}.
@@ -253,7 +257,7 @@ RESPONSE STYLE RULES — follow these strictly:
    👨‍🍳 Step-by-Step Instructions: [numbered steps, each clearly titled]
    ✅ Tips: [1–3 practical beginner tips if helpful]
 
-5. SCALE quantities realistically. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, or recalculating any ingredients or quantities. Otherwise, scale quantities accurately for the serving size. Spices (e.g. chili powder, turmeric, garam masala) and salt MUST ALWAYS be measured in grams (g), tsp, or tbsp — NEVER in kg. For example, for 10 people biryani, red chili powder is roughly 40–70 g (around 2–4 tbsp), NEVER 1 kg or 2 kg. Eggs MUST ALWAYS be measured in pieces (pcs) — NEVER in kg or g (e.g. 10 eggs for 10 people Chicken Noodles, NEVER 1 kg).
+5. SCALE quantities realistically. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, adding, or recalculating any ingredients or quantities. In the cooking steps, use ONLY these ingredients and their exact quantities. Never introduce unrelated ingredients (such as Cocoa Powder for Biryani or savory dishes). Otherwise, scale quantities accurately for the serving size. Spices (e.g. chili powder, turmeric, garam masala) and salt MUST ALWAYS be measured in grams (g), tsp, or tbsp — NEVER in kg. For example, for 10 people biryani, red chili powder is roughly 40–70 g (around 2–4 tbsp), NEVER 1 kg or 2 kg. Eggs MUST ALWAYS be measured in pieces (pcs) — NEVER in kg or g (e.g. 10 eggs for 10 people Chicken Noodles, NEVER 1 kg).
 
 6. For every important cooking stage, tell the user HOW TO KNOW IT IS READY:
    - BAD: "Cook the chicken for 20 minutes."

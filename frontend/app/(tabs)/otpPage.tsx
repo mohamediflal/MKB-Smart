@@ -79,6 +79,10 @@ export default function OtpPage() {
 					}
 				])
 			} else {
+				if (params.password && params.password.length <= 8) {
+					Alert.alert('Validation Error', 'Password must be more than 8 characters.')
+					return
+				}
 				await register({
 					name: params.name || '',
 					email: params.email || '',

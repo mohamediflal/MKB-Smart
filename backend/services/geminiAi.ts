@@ -11,9 +11,9 @@ function getGeminiClient(): GoogleGenAI | null {
 }
 
 const CANDIDATE_MODELS = [
-  process.env.GEMINI_MODEL || "gemini-3.6-flash",
+  process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
+  "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-3.1-flash-lite",
   "gemini-3.1-pro-preview"
 ];
 
@@ -41,7 +41,11 @@ CRITICAL RULES FOR ACCURACY & CULINARY PROPORTIONS:
 1. UNDERSTAND THE EXACT RECIPE:
    - Every recipe has standard, authentic core ingredients.
    - For Noodles (e.g. Chicken Noodles, Veg Noodles, Egg Noodles): Include noodles, main protein/eggs, crisp vegetables (cabbage, carrot, bell pepper/capsicum, spring onions), aromatics (ginger, garlic), seasoning (soy sauce, chili/oyster sauce, sesame oil, black pepper, salt).
-   - For Biryani (e.g. Chicken, Mutton, Beef, Prawn, Fish, Veg): Include Basmati Rice, main protein, onions (for frying/birista), tomatoes, plain yogurt/curd, ginger, garlic, green chilies, mint leaves, coriander leaves, ghee/oil, whole spices (cinnamon, cloves, cardamom, bay leaf, star anise), biryani masala, turmeric, chili powder, salt. Do NOT include side bread or separate rice!
+   - For Biryani (Chicken Biryani, Mutton Biryani, Beef Biryani, Fish Biryani, Prawn Biryani, Vegetable Biryani):
+     * Include Basmati Rice, the EXACT primary protein/vegetables for that specific biryani (e.g., Chicken for Chicken Biryani, Mutton for Mutton Biryani, Beef for Beef Biryani, Fish for Fish Biryani, Prawns for Prawn Biryani, Mixed Vegetables/Paneer for Veg Biryani), onions (for frying/birista), tomatoes, plain yogurt/curd, ginger, garlic, green chilies, mint leaves, coriander leaves, ghee/oil, whole spices (cinnamon, cloves, cardamom, bay leaf, star anise), biryani masala, turmeric, chili powder, salt.
+     * Do NOT include side bread or separate rice!
+     * NEVER include Cocoa Powder, chocolate, vanilla, baking powder, pasta, noodles, or sweet baking items in ANY Biryani or savory dish!
+     * NEVER cross-contaminate proteins (e.g. no mutton or beef in Chicken Biryani, no meat or seafood in Vegetable Biryani).
    - For Fried Rice: Include long grain/basmati rice, eggs/protein, finely diced vegetables (carrots, leeks/spring onions), garlic, soy sauce, sesame oil, pepper, salt.
    - For Soups (e.g. Tomato Soup, Lentil Soup, Corn Soup, Chicken Soup): Include main base (fresh tomatoes, lentils, corn, chicken), broth/stock, onions, garlic, butter/olive oil, fresh cream (if creamy soup), herbs (basil/coriander), salt, black pepper.
    - For Curries (e.g. Dhal Curry, Fish Curry, Chicken Curry, Beef Curry): Include main protein/veggies, onions, tomatoes, green chilies, ginger, garlic, curry leaves, coconut milk (or yogurt), chili powder, curry powder, turmeric, fenugreek/mustard seeds, salt, oil.
@@ -49,9 +53,11 @@ CRITICAL RULES FOR ACCURACY & CULINARY PROPORTIONS:
    - For Bakery/Desserts (e.g. Cakes, Cookies, Brownies, Pancakes, Waffles): Include all-purpose flour, sugar, butter/oil, eggs, baking powder/soda, milk, vanilla extract, cocoa powder (if chocolate), salt.
    - For Sri Lankan/Indian Specialties (Kottu, Hoppers, Sambol, Dosa, Idly, Sambar): Include their authentic authentic base components (e.g., Godamba roti, eggs, meat, leeks, onions for Kottu; grated coconut, red onion, chili powder, lime for Coconut Sambol).
 
-2. STRICT RECIPE RELEVANCE:
-   - Generate ONLY ingredients cooked directly inside "${recipeName}".
+2. STRICT RECIPE RELEVANCE & AUTHENTICITY:
+   - Generate ONLY ingredients genuinely cooked directly inside "${recipeName}".
+   - NEVER add cocoa powder, chocolate, vanilla, custard powder, or sweet baking ingredients to savory recipes (Biryani, Curries, Noodles, Fried Rice, Soups)!
    - NEVER add separate side dishes, accompaniments, or unrelated staple carbs (such as bread, roti, plain rice) unless that grain is an inherent cooked ingredient of "${recipeName}" (like Biryani, Fried Rice, Risotto, Noodles, Pasta).
+   - The grocery ingredients list and step-by-step instructions MUST correspond to the exact same ingredients, quantities, and units.
 
 3. SERVING SIZE & TARGET SCALING:
    - Calculate ingredient quantities strictly based on the target: ${quantityDescription}.
@@ -119,9 +125,13 @@ CRITICAL RULES FOR ACCURACY & CULINARY PROPORTIONS:
             },
             required: ["name", "quantity", "displayQuantity", "unit", "isAvailable"]
           }
+        },
+        instructions: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
         }
       },
-      required: ["recipeName", "servings", "ingredients"]
+      required: ["recipeName", "servings", "ingredients", "instructions"]
     }
   };
 
@@ -207,7 +217,7 @@ RESPONSE STYLE RULES — follow these strictly:
    ### 🍴 Serving
    [Serving suggestion: e.g. Serve hot with your favorite accompaniment.]
 
-5. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, or recalculating any ingredients or quantities. Otherwise, scale quantities realistically based on the serving size. Spices (e.g. chilli powder, turmeric, garam masala) and salt MUST ALWAYS be measured in grams (g), tsp, or tbsp — NEVER in kg. For example, for 10 people biryani, red chilli powder is roughly 40–70 g (around 2–4 tbsp), NEVER 1 kg or 2 kg. Eggs MUST ALWAYS be measured in pieces (pcs) — NEVER in kilograms (kg) or grams (g) (e.g. 10 eggs for 10 people Chicken Noodles, NEVER 1 kg).
+5. If exact ingredients and quantities are provided in the user prompt, you MUST use them EXACTLY without changing, omitting, adding, or recalculating any ingredients or quantities. In the cooking steps, use ONLY these ingredients and their exact quantities. Never introduce unrelated ingredients (such as Cocoa Powder for Biryani or savory dishes). Otherwise, scale quantities realistically based on the serving size. Spices (e.g. chilli powder, turmeric, garam masala) and salt MUST ALWAYS be measured in grams (g), tsp, or tbsp — NEVER in kg. For example, for 10 people biryani, red chilli powder is roughly 40–70 g (around 2–4 tbsp), NEVER 1 kg or 2 kg. Eggs MUST ALWAYS be measured in pieces (pcs) — NEVER in kilograms (kg) or grams (g) (e.g. 10 eggs for 10 people Chicken Noodles, NEVER 1 kg).
 6. If a section like Cooking Tips is not needed for a simple recipe, omit it rather than leaving it empty.
 7. Keep each step's paragraph short and focused so users can easily read it on mobile screens.
 8. For meat, poultry, or seafood, include basic food safety guidance (e.g. chicken must be fully cooked — no pink inside, juices run clear).
