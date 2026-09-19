@@ -25,7 +25,8 @@ const SESSION_KEY = 'grocery_session'
 const THEME_KEY = 'grocery_theme'
 
 export async function login(email, password, role = 'admin') {
-    const base = import.meta.env.VITE_BACKEND_URL || ''
+    const rawBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+    const base = rawBase.replace(/\/+$/, '')
     const endpoint = role === 'superadmin' ? '/api/auth/superadmin/login' : '/api/auth/admin/login'
     try {
         const res = await fetch(`${base}${endpoint}`, {
