@@ -7,7 +7,11 @@ let firebaseApp: App | null = null;
 try {
   const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccountVar) {
-    const serviceAccount = JSON.parse(serviceAccountVar);
+    let cleanVar = serviceAccountVar.trim();
+    if ((cleanVar.startsWith("'") && cleanVar.endsWith("'")) || (cleanVar.startsWith('"') && cleanVar.endsWith('"'))) {
+      cleanVar = cleanVar.slice(1, -1).trim();
+    }
+    const serviceAccount = JSON.parse(cleanVar);
     firebaseApp = initializeApp({
       credential: cert(serviceAccount)
     });
