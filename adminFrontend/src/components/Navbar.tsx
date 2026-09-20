@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { X, Check } from 'lucide-react'
 import NotificationMenu from './NotificationMenue'
 import { getSession } from '../pages/index'
@@ -251,6 +252,13 @@ function Navbar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const navigate = useNavigate()
+
+  const handleProfileClick = () => {
+    const session = getSession()
+    const isSuper = session?.isSuperAdmin || role?.toString().toUpperCase().includes('SUPER') || window.location.pathname.startsWith('/superadmin')
+    navigate(isSuper ? '/superadmin/profile' : '/admin/profile')
+  }
 
   const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
 
@@ -459,7 +467,11 @@ function Navbar({
           </div>
 
           {/* Avatar + name */}
-          <button type="button" className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-muted cursor-pointer transition-all duration-200">
+          <button
+            type="button"
+            onClick={handleProfileClick}
+            className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-muted cursor-pointer transition-all duration-200"
+          >
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-primary-foreground">
               {avatarText}
             </div>
