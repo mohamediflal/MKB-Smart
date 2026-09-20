@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 14.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://mkb-smart-backend.vercel.app",
+        "VITE_BACKEND_URL": "https://mkb-smart-backend.vercel.app",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51U2UPdEl2eLQqTneBsu7nurUhoy7TpuA2HuUz2XZvTfy2JJqAJZL7BAPAfhD9G9ETfffxlWo1iTVvwnFkgobY1go0038rEAZn2"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://mkb-smart-backend.vercel.app",
+        "VITE_BACKEND_URL": "https://mkb-smart-backend.vercel.app",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51U2UPdEl2eLQqTneBsu7nurUhoy7TpuA2HuUz2XZvTfy2JJqAJZL7BAPAfhD9G9ETfffxlWo1iTVvwnFkgobY1go0038rEAZn2"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

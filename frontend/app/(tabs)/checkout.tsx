@@ -16,6 +16,7 @@ import { useStripe } from "@stripe/stripe-react-native";
 import { useCart } from "@/context/CartContext";
 import { useAddresses } from "@/context/AddressContext";
 import { useAuth, API_BASE_URL } from "@/context/AuthContext";
+import { DEFAULT_STRIPE_PUBLISHABLE_KEY } from "../_layout";
 
 
 const DELIVERY_FEE = 150;
@@ -197,8 +198,30 @@ export default function CheckoutScreen() {
 			}
 		} else {
 			try {
+				// Validate publishable key before proceeding to Stripe native calls
+				const activePublishableKey =
+					process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || DEFAULT_STRIPE_PUBLISHABLE_KEY;
+
+				if (!activePublishableKey || !activePublishableKey.startsWith("pk_")) {
+					console.error("[Checkout] Stripe publishable key is missing or invalid");
+					Alert.alert("Configuration Error", "Stripe payment is not properly configured. Missing publishable key.");
+					setIsPlacing(false);
+					return;
+				}
+
+				console.log("[Checkout] Selected payment method:", paymentMethod);
+				console.log("[Checkout] API base URL:", API_BASE_URL);
+				console.log(
+					"[Checkout] Stripe publishable key available:",
+					Boolean(activePublishableKey),
+					activePublishableKey ? `${activePublishableKey.slice(0, 8)}...` : "none"
+				);
+
 				// 1. Create PaymentIntent on the backend
-				const intentResponse = await fetch(`${API_BASE_URL}/api/orders/create-payment-intent`, {
+				const intentUrl = `${API_BASE_URL}/api/orders/create-payment-intent`;
+				console.log("[Checkout] Requesting PaymentIntent from:", intentUrl);
+
+				const intentResponse = await fetch(intentUrl, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
@@ -212,81 +235,155 @@ export default function CheckoutScreen() {
 					}),
 				});
 
-				const intentData = await intentResponse.json();
+				console.log("[Checkout] PaymentIntent response status:", intentResponse.status);
+
+				let intentData: any = {};
+				try {
+					intentData = await intentResponse.json();
+				} catch (parseErr) {
+					console.error("[Checkout] Failed to parse backend payment intent response:", parseErr);
+					Alert.alert("Server Error", "Received invalid response from server while preparing payment.");
+					setIsPlacing(false);
+					return;
+				}
 
 				if (!intentResponse.ok || !intentData.success) {
-					Alert.alert("Payment Setup Failed", intentData.message || "Failed to initiate payment sheet. Please try again.");
+					console.error("[Checkout] PaymentIntent failed:", intentData.message);
+					Alert.alert(
+						"Payment Setup Failed",
+						intentData.message || "Failed to initiate payment sheet. Please try again."
+					);
 					setIsPlacing(false);
 					return;
 				}
 
 				const { clientSecret, paymentIntentId } = intentData;
 
-				// 2. Initialize the native Stripe Payment Sheet
-				const { error: initError } = await initPaymentSheet({
-					paymentIntentClientSecret: clientSecret,
-					merchantDisplayName: "MKB-Smart Payment",
-					allowsDelayedPaymentMethods: false,
-					defaultBillingDetails: {
-						name: primaryAddress.fullName,
-						phone: primaryAddress.phone || undefined,
-						address: {
-							city: primaryAddress.city,
-							country: "LK",
-							line1: primaryAddress.street,
-							postalCode: primaryAddress.postalCode,
-						}
-					},
-					appearance: {
-						colors: {
-							primary: "#15803d",
-							background: "#ffffff",
-							componentBackground: "#ffffff",
-							componentBorder: "#e2e8f0",
-							componentDivider: "#f1f5f9",
-							primaryText: "#0f172a",
-							secondaryText: "#475569",
-							placeholderText: "#94a3b8",
-							icon: "#15803d",
+				console.log("[Checkout] PaymentIntent received:", {
+					paymentIntentId: paymentIntentId || "missing",
+					hasClientSecret: Boolean(clientSecret),
+				});
+
+				if (!clientSecret || typeof clientSecret !== "string" || !clientSecret.includes("_secret_")) {
+					console.error("[Checkout] Invalid clientSecret received from backend");
+					Alert.alert("Payment Setup Error", "Invalid payment session received from server. Please try again.");
+					setIsPlacing(false);
+					return;
+				}
+
+				// 2. Initialize the native Stripe Payment Sheet with safe billing details and returnURL
+				let initErrorResult: any = null;
+				try {
+					const { error: initError } = await initPaymentSheet({
+						paymentIntentClientSecret: clientSecret,
+						merchantDisplayName: "MKB-Smart Payment",
+						returnURL: "mkbsmart://stripe-redirect",
+						allowsDelayedPaymentMethods: false,
+						defaultBillingDetails: {
+							name: primaryAddress.fullName || user?.name || "Customer",
+							phone: primaryAddress.phone || undefined,
+							address: {
+								country: "LK",
+								city: primaryAddress.city || undefined,
+								line1: primaryAddress.street || undefined,
+								postalCode: primaryAddress.postalCode || undefined,
+							},
 						},
-						shapes: {
-							borderRadius: 14,
-							borderWidth: 1,
-						},
-						primaryButton: {
+						appearance: {
 							colors: {
-								background: "#15803d",
-								text: "#ffffff",
-								border: "#15803d",
+								light: {
+									primary: "#15803d",
+									background: "#ffffff",
+									componentBackground: "#ffffff",
+									componentBorder: "#cbd5e1",
+									componentDivider: "#e2e8f0",
+									primaryText: "#0f172a",
+									secondaryText: "#475569",
+									componentText: "#0f172a",
+									placeholderText: "#94a3b8",
+									icon: "#15803d",
+									error: "#dc2626",
+								},
+								dark: {
+									primary: "#15803d",
+									background: "#ffffff",
+									componentBackground: "#ffffff",
+									componentBorder: "#cbd5e1",
+									componentDivider: "#e2e8f0",
+									primaryText: "#0f172a",
+									secondaryText: "#475569",
+									componentText: "#0f172a",
+									placeholderText: "#94a3b8",
+									icon: "#15803d",
+									error: "#dc2626",
+								},
 							},
 							shapes: {
 								borderRadius: 14,
+								borderWidth: 1,
+							},
+							primaryButton: {
+								colors: {
+									light: {
+										background: "#15803d",
+										text: "#ffffff",
+										border: "#15803d",
+									},
+									dark: {
+										background: "#15803d",
+										text: "#ffffff",
+										border: "#15803d",
+									},
+								},
+								shapes: {
+									borderRadius: 14,
+								},
 							},
 						},
-					},
-				});
+					});
+					initErrorResult = initError;
+				} catch (nativeInitErr: any) {
+					console.error("[Checkout] Native initPaymentSheet exception:", nativeInitErr);
+					Alert.alert("Payment Initialization Error", nativeInitErr?.message || "Failed to initialize payment sheet.");
+					setIsPlacing(false);
+					return;
+				}
 
-				if (initError) {
-					Alert.alert("Payment Setup Error", initError.message);
+				if (initErrorResult) {
+					console.error("[Checkout] initPaymentSheet error:", initErrorResult);
+					Alert.alert("Payment Setup Error", initErrorResult.message || "Failed to set up payment sheet.");
 					setIsPlacing(false);
 					return;
 				}
 
 				// 3. Present the Payment Sheet
-				const { error: presentError } = await presentPaymentSheet();
+				let presentErrorResult: any = null;
+				try {
+					const { error: presentError } = await presentPaymentSheet();
+					presentErrorResult = presentError;
+				} catch (nativePresentErr: any) {
+					console.error("[Checkout] Native presentPaymentSheet exception:", nativePresentErr);
+					Alert.alert("Payment Error", nativePresentErr?.message || "An unexpected error occurred during payment.");
+					setIsPlacing(false);
+					return;
+				}
 
-				if (presentError) {
-					if (presentError.code === "Canceled") {
-						console.log("Stripe Payment Sheet Canceled by User");
+				if (presentErrorResult) {
+					if (presentErrorResult.code === "Canceled") {
+						console.log("[Checkout] Stripe Payment Sheet canceled by user");
 					} else {
-						Alert.alert("Payment Failed", presentError.message);
+						console.error("[Checkout] presentPaymentSheet error:", presentErrorResult);
+						Alert.alert("Payment Failed", presentErrorResult.message || "Payment could not be completed.");
 					}
 					setIsPlacing(false);
 					return;
 				}
 
-				// 4. Place the order with verified payment ID on the backend
-				const orderResponse = await fetch(`${API_BASE_URL}/api/orders/place-card`, {
+				// 4. Place the order with verified payment ID on the backend ONLY after successful payment confirmation
+				const orderUrl = `${API_BASE_URL}/api/orders/place-card`;
+				console.log("[Checkout] Payment successful. Placing order at:", orderUrl);
+
+				const orderResponse = await fetch(orderUrl, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
@@ -302,13 +399,25 @@ export default function CheckoutScreen() {
 					}),
 				});
 
-				const orderData = await orderResponse.json();
-
-				if (!orderResponse.ok || !orderData.success) {
-					Alert.alert("Order Completed but Failed to Save", orderData.message || "Your payment succeeded but we failed to register the order. Please contact support.");
+				let orderData: any = {};
+				try {
+					orderData = await orderResponse.json();
+				} catch (parseOrderErr) {
+					console.error("[Checkout] Failed to parse place-card response:", parseOrderErr);
+					Alert.alert("Order Status", "Payment succeeded, but we are finalizing your order. Please check your Orders page.");
 					return;
 				}
 
+				if (!orderResponse.ok || !orderData.success) {
+					console.error("[Checkout] Place card order failed:", orderData);
+					Alert.alert(
+						"Order Completed but Failed to Save",
+						orderData.message || "Your payment succeeded but we failed to register the order. Please contact support with your payment ID."
+					);
+					return;
+				}
+
+				console.log("[Checkout] Card order placed successfully:", orderData.order?.id);
 				setCreatedOrder(orderData.order);
 				setIsSuccessModalVisible(true);
 			} catch (error: any) {

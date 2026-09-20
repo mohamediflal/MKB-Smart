@@ -27,23 +27,27 @@ type AuthContextValue = {
   setUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
 };
 
-const getApiBaseUrl = () => {
-  const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL)
-    || (typeof process !== 'undefined' && (process as any).env && (process as any).env.VITE_BACKEND_URL)
-    || (Constants.manifest && (Constants.manifest as any).extra && (Constants.manifest as any).extra.VITE_BACKEND_URL)
-    || (Constants.expoConfig && (Constants.expoConfig as any).extra && (Constants.expoConfig as any).extra.VITE_BACKEND_URL)
-    || (typeof (global as any).VITE_BACKEND_URL !== 'undefined' ? (global as any).VITE_BACKEND_URL : undefined);
+const PROD_API_URL = "https://mkb-smart-backend.vercel.app";
 
-  // If a production HTTPS URL is configured, always respect it
+const getApiBaseUrl = () => {
+  // Direct process.env references so Metro can statically inline them at bundle time
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || process.env.VITE_BACKEND_URL;
+
+  // 1. If an explicit HTTPS URL is configured, always respect it
   if (envUrl && envUrl.startsWith("https://")) {
     return envUrl.replace(/\/+$/, '');
+  }
+
+  // 2. In standalone production/preview builds (!__DEV__), always use the live Vercel backend
+  if (typeof __DEV__ !== 'undefined' && !__DEV__) {
+    return (envUrl || PROD_API_URL).replace(/\/+$/, '');
   }
 
   if (Platform.OS === "web") {
     return envUrl ? envUrl.replace(/\/+$/, '') : "http://localhost:3000";
   }
 
-  // Detect Expo Metro bundler host in development (dynamically adapts if laptop IP changes)
+  // 3. Detect Expo Metro bundler host in development (dynamically adapts to laptop Wi-Fi IP)
   const debuggerHost =
     (typeof Constants.manifest === "object" && Constants.manifest?.debuggerHost)
     || (typeof Constants.manifest2 === "object" && Constants.manifest2?.debuggerHost)
@@ -51,11 +55,7 @@ const getApiBaseUrl = () => {
 
   if (debuggerHost) {
     const host = debuggerHost.split(":")[0];
-    if (host) {
-      if (host === "localhost" || host === "127.0.0.1") {
-        if (Platform.OS === "android") return "http://10.0.2.2:3000";
-        return "http://localhost:3000";
-      }
+    if (host && host !== "localhost" && host !== "127.0.0.1") {
       return `http://${host}:3000`;
     }
   }
@@ -64,11 +64,8 @@ const getApiBaseUrl = () => {
     return envUrl.replace(/\/+$/, '');
   }
 
-  if (Platform.OS === "android") {
-    return "http://10.0.2.2:3000";
-  }
-
-  return "http://localhost:3000";
+  // Final fallback to live Vercel backend
+  return PROD_API_URL;
 };
 
 export const API_BASE_URL = getApiBaseUrl();

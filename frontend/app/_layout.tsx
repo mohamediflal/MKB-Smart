@@ -7,11 +7,19 @@ import { FavoritesProvider } from "@/context/FavoritesContext";
 import { CategoryProvider } from "@/context/CategoryContext";
 import { StripeProvider } from "@stripe/stripe-react-native";
 
+export const DEFAULT_STRIPE_PUBLISHABLE_KEY =
+  "pk_test_51U2UPdEl2eLQqTneBsu7nurUhoy7TpuA2HuUz2XZvTfy2JJqAJZL7BAPAfhD9G9ETfffxlWo1iTVvwnFkgobY1go0038rEAZn2";
+
 export default function RootLayout() {
-  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
+  const publishableKey =
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || DEFAULT_STRIPE_PUBLISHABLE_KEY;
 
   return (
-    <StripeProvider publishableKey={publishableKey}>
+    <StripeProvider
+      publishableKey={publishableKey}
+      merchantIdentifier="merchant.com.mkbsmart"
+      urlScheme="mkbsmart"
+    >
       <AuthProvider>
         <FavoritesProvider>
           <CartProvider>
