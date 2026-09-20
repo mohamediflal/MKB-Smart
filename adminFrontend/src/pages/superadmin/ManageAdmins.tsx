@@ -384,7 +384,7 @@ export default function ManageAdmins() {
                     const isBottomRow = index >= approvedAdmins.length - 2 && approvedAdmins.length > 2;
                     const isMe = a.email?.toLowerCase() === currentUserEmail;
                     return (
-                      <tr key={a.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
+                      <tr key={a.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors duration-150">
                         <td className="px-6 py-4 font-semibold text-slate-900 dark:text-white">
                           <div className="flex items-center gap-2">
                             <span>{a.name}</span>
@@ -395,28 +395,29 @@ export default function ManageAdmins() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100">{a.email}</td>
+                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100 font-medium">{a.email}</td>
                         <td className="px-6 py-4 text-slate-900 dark:text-slate-100">
                           {a.role === "super_admin" ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-800 dark:text-violet-300 px-2.5 py-1 text-xs font-bold border border-violet-200/50 dark:border-violet-900/30">
-                              <span className="h-1.5 w-1.5 rounded-full bg-violet-600 dark:bg-violet-400"></span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100/80 dark:bg-violet-950/50 text-violet-800 dark:text-violet-300 px-3 py-1 text-xs font-bold border border-violet-200/60 dark:border-violet-900/40 shadow-xs">
+                              <span className="h-1.5 w-1.5 rounded-full bg-violet-600 dark:bg-violet-400 animate-pulse"></span>
                               Super Admin
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 dark:bg-sky-950/30 text-sky-800 dark:text-sky-300 px-2.5 py-1 text-xs font-semibold border border-sky-200/40 dark:border-sky-900/20">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100/80 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 px-3 py-1 text-xs font-semibold border border-sky-200/60 dark:border-sky-900/30 shadow-xs">
                               <span className="h-1.5 w-1.5 rounded-full bg-sky-500"></span>
                               Admin
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100">
+                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100 font-medium">
                           {a.lastActive || a.lastLogin}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${a.status === "Active"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                            : "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-400"
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${a.status === "Active"
+                            ? "bg-emerald-100/80 text-emerald-800 ring-emerald-600/20 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-500/30"
+                            : "bg-slate-100 text-slate-700 ring-slate-400/20 dark:bg-slate-800/60 dark:text-slate-400 dark:ring-slate-700/30"
                             }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${a.status === "Active" ? "bg-emerald-500" : "bg-slate-400"}`} />
                             {a.status || "Active"}
                           </span>
                         </td>
@@ -427,7 +428,7 @@ export default function ManageAdmins() {
                               e.stopPropagation();
                               setActiveMenuId(activeMenuId === a.id ? null : a.id);
                             }}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer text-slate-900 hover:text-slate-700 dark:text-slate-200 dark:hover:text-slate-200 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
                             title={isMe ? "You cannot modify your own account" : "Actions"}
                           >
                             <MoreVertical size={18} />
@@ -436,7 +437,7 @@ export default function ManageAdmins() {
                           {/* Dropdown Options Menu */}
                           {activeMenuId === a.id && (
                             <div
-                              className={`absolute right-6 z-10 w-44 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 shadow-xl animate-in fade-in duration-150 ${isBottomRow
+                              className={`absolute right-6 z-10 w-44 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150 ${isBottomRow
                                 ? "bottom-10 origin-bottom"
                                 : "top-12 origin-top"
                                 }`}
@@ -447,7 +448,7 @@ export default function ManageAdmins() {
                                   handleOpenEdit(a);
                                   setActiveMenuId(null);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                               >
                                 <Pencil size={14} /> Edit Admin
                               </button>
