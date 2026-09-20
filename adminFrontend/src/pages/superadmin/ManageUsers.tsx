@@ -152,22 +152,23 @@ export default function ManageUsers() {
                   usersList.map((u, index) => {
                     const isBottomRow = index >= usersList.length - 2 && usersList.length > 2;
                     return (
-                      <tr key={u.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors">
+                      <tr key={u.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors duration-150">
                         <td className="px-6 py-4 flex items-center gap-3">
-                          <div className="grid h-9 w-9 place-items-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-semibold">
+                          <div className="grid h-9 w-9 place-items-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-bold ring-2 ring-emerald-500/20 shadow-xs">
                             {u.name.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase()}
                           </div>
                           <span className="font-semibold text-slate-900 dark:text-white">{u.name}</span>
                         </td>
                         <td className="px-6 py-4 text-slate-900 dark:text-slate-100">{u.email}</td>
-                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100">{u.orders}</td>
-                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100">Rs. {u.spent.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100 font-medium">{u.orders}</td>
+                        <td className="px-6 py-4 text-slate-900 dark:text-slate-100 font-medium">Rs. {u.spent.toFixed(2)}</td>
                         <td className="px-6 py-4 text-slate-900 dark:text-slate-100">{u.joined}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${u.status === "Active" 
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300" 
-                            : "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-400"
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${u.status === "Active" 
+                            ? "bg-emerald-100/80 text-emerald-800 ring-emerald-600/20 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-500/30" 
+                            : "bg-slate-100 text-slate-700 ring-slate-400/20 dark:bg-slate-800/60 dark:text-slate-400 dark:ring-slate-700/30"
                             }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${u.status === "Active" ? "bg-emerald-500" : "bg-slate-400"}`} />
                             {u.status}
                           </span>
                         </td>
@@ -177,7 +178,7 @@ export default function ManageUsers() {
                               e.stopPropagation();
                               setActiveMenuId(activeMenuId === u.id ? null : u.id);
                             }}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer text-slate-900 hover:text-slate-700 dark:text-slate-200 dark:hover:text-slate-200 transition"
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 transition-all active:scale-95"
                           >
                             <MoreVertical size={18} />
                           </button>
@@ -185,7 +186,7 @@ export default function ManageUsers() {
                           {/* Dropdown Options Menu */}
                           {activeMenuId === u.id && (
                             <div
-                              className={`absolute right-6 z-10 w-44 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 shadow-xl animate-in fade-in duration-150 ${isBottomRow
+                              className={`absolute right-6 z-10 w-44 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150 ${isBottomRow
                                 ? "bottom-10 origin-bottom"
                                 : "top-12 origin-top"
                                 }`}
@@ -196,7 +197,7 @@ export default function ManageUsers() {
                                   handleToggleStatus(u);
                                   setActiveMenuId(null);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                               >
                                 <ShieldAlert size={14} /> Toggle Status
                               </button>
@@ -206,7 +207,7 @@ export default function ManageUsers() {
                                   handleDeleteUser(u.id);
                                   setActiveMenuId(null);
                                 }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer"
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer"
                               >
                                 <Trash2 size={14} /> Remove User
                               </button>
