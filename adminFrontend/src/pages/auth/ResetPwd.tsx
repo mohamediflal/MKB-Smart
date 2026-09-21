@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
+import { getApiBase } from '../../config/api'
 
 function Icon({ children, className = '' }) {
 	return (
